@@ -111,9 +111,8 @@ function MSHUB:_buildUI()
         Name = "Menu",
         Parent = self.ScreenGui,
         Size = UDim2.new(0, 500, 0, 400),
-        -- Centraliza o menu usando AnchorPoint e Position
-        Position = UDim2.new(0.5, 0, 0.5, 0), -- Posição no centro
-        AnchorPoint = Vector2.new(0.5, 0.5), -- Ponto de ancoragem no centro do objeto
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = self.Theme.Background,
         BorderColor3 = self.Theme.Border,
         BorderSizePixel = 2,
@@ -133,7 +132,7 @@ function MSHUB:_buildUI()
         Position = UDim2.new(0, 16, 0, 0),
     })
 
-    -- Tab Bar (agora com ScrollingFrame para scroll horizontal)
+    -- Tab Bar (ScrollingFrame for horizontal scroll)
     self.TabBar = create("ScrollingFrame", {
         Parent = self.Menu,
         Name = "TabBar",
@@ -156,24 +155,19 @@ function MSHUB:_buildUI()
         VerticalAlignment = Enum.VerticalAlignment.Center,
     })
 
-    -- Body (onde as categorias aparecem) - agora também é um ScrollingFrame
-    self.Body = create("ScrollingFrame", {
+    -- Body (ScrollingFrame for tab content)
+    self.Body = create("Frame", {
         Parent = self.Menu,
         Name = "Body",
         Position = UDim2.new(0, 0, 0, 74),
         Size = UDim2.new(1, 0, 1, -74),
         BackgroundTransparency = 1,
         ClipsDescendants = true,
-        ScrollBarThickness = 8,
-        CanvasSize = UDim2.new(0, 0, 0, 0),
-        ScrollingDirection = Enum.ScrollingDirection.Y,
-        AutomaticCanvasSize = Enum.AutomaticSize.Y,
         BorderSizePixel = 0,
     })
 end
 
 function MSHUB:_buildMenuToggle()
-    -- Square menu toggle button (left side)
     self.MenuToggle = create("TextButton", {
         Parent = self.ScreenGui,
         Name = "MenuToggle",
@@ -196,7 +190,6 @@ function MSHUB:_buildMenuToggle()
 end
 
 function MSHUB:_buildLockToggle()
-    -- Lock/Unlock button below menu toggle
     self.LockToggle = create("TextButton", {
         Parent = self.ScreenGui,
         Name = "LockToggle",
@@ -264,7 +257,7 @@ function MSHUB:_buildConfigTab()
         cat:AddButton("Resetar para Padrão", function()
             self:ResetSettings()
         end)
-        cat:AddDropdown("Tema", {"Dark", "Light"}, self.ThemeName, function(selected) -- Usa self.ThemeName
+        cat:AddDropdown("Tema", {"Dark", "Light"}, self.ThemeName, function(selected)
             self:ApplyTheme(selected)
         end)
         cat:AddColorPicker("Cor do Texto", self.Theme.Text, function(color)
@@ -289,7 +282,6 @@ function MSHUB:AddTab(name, options)
     }
     table.insert(self.Tabs, tab)
 
-    -- Create tab button
     local tabBtn = create("TextButton", {
         Parent = self.TabBar,
         Size = UDim2.new(0, 120, 1, 0),
@@ -303,6 +295,7 @@ function MSHUB:AddTab(name, options)
         AutoButtonColor = true,
         LayoutOrder = tab.LayoutOrder,
         Name = name,
+        ZIndex = 2,
     })
     tab.TabButton = tabBtn
 
@@ -310,7 +303,7 @@ function MSHUB:AddTab(name, options)
         self:ShowTab(tab)
     end)
 
-    -- Build tab body container (not visible until selected)
+    -- Build tab body container (now always present under .Body, only one visible at a time)
     tab.Body = create("ScrollingFrame", {
         Parent = self.Body,
         Size = UDim2.new(1, 0, 1, 0),
@@ -323,6 +316,7 @@ function MSHUB:AddTab(name, options)
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         BorderSizePixel = 0,
         ClipsDescendants = true,
+        ZIndex = 1,
     })
 
     tab.ListLayout = create("UIListLayout", {
@@ -357,17 +351,14 @@ function MSHUB:AddTab(name, options)
             TextXAlignment = Enum.TextXAlignment.Left,
             Position = UDim2.new(0, 8, 0, 0),
         })
-        -- Category body agora é um ScrollingFrame para scroll dos controles
-        category.Body = create("ScrollingFrame", {
+        category.Body = create("Frame", {
             Parent = category.Frame,
             Size = UDim2.new(1, -8, 1, -24),
             Position = UDim2.new(0, 8, 0, 24),
             BackgroundTransparency = 1,
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            ScrollBarThickness = 6,
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            ScrollingDirection = Enum.ScrollingDirection.Y,
             BorderSizePixel = 0,
+            Name = "ControlsBody",
+            AutomaticSize = Enum.AutomaticSize.Y,
             ClipsDescendants = true,
         })
         category.BodyLayout = create("UIListLayout", {
@@ -376,7 +367,7 @@ function MSHUB:AddTab(name, options)
             SortOrder = Enum.SortOrder.LayoutOrder,
         })
 
-        -- Control adders
+        -- Control adders (as before, insert controls into category.Body)
         function category:AddToggle(name, default, callback)
             local state = default and true or false
             local btn = create("TextButton", {
@@ -390,14 +381,15 @@ function MSHUB:AddTab(name, options)
                 TextSize = 16,
                 TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
-                Name = "Toggle_" .. name:gsub("%s+", "_"), -- Adiciona um nome para o controle
+                Name = "Toggle_" .. name:gsub("%s+", "_"),
             })
             btn.MouseButton1Click:Connect(function()
                 state = not state
                 btn.Text = (state and "■" or "□").." "..name
                 if callback then callback(state) end
             end)
-            return btn -- Retorna o controle para atualização de tema
+            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, btn)
+            return btn
         end
 
         function category:AddSlider(name, min, max, default, callback)
@@ -406,7 +398,7 @@ function MSHUB:AddTab(name, options)
                 Parent = category.Body,
                 Size = UDim2.new(1, 0, 0, 38),
                 BackgroundTransparency = 1,
-                Name = "Slider_" .. name:gsub("%s+", "_"), -- Adiciona um nome
+                Name = "Slider_" .. name:gsub("%s+", "_"),
             })
             local label = create("TextLabel", {
                 Parent = sliderFrame,
@@ -458,6 +450,7 @@ function MSHUB:AddTab(name, options)
             sliderBar.InputChanged:Connect(function(input)
                 if dragging then updateSlider(input) end
             end)
+            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, sliderFrame)
             return sliderFrame
         end
 
@@ -468,7 +461,7 @@ function MSHUB:AddTab(name, options)
                 Parent = category.Body,
                 Size = UDim2.new(1, 0, 0, 36),
                 BackgroundTransparency = 1,
-                Name = "Dropdown_" .. name:gsub("%s+", "_"), -- Adiciona um nome
+                Name = "Dropdown_" .. name:gsub("%s+", "_"),
             })
             local button = create("TextButton", {
                 Parent = dropdownFrame,
@@ -521,18 +514,18 @@ function MSHUB:AddTab(name, options)
                 button.Text = "["..name.." "..(expanded and "–" or "+").."]"
                 listFrame.Visible = expanded
             end)
+            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, dropdownFrame)
             return dropdownFrame
         end
 
         function category:AddDropdownToggle(name, options, default, callback)
-            -- Similar to AddDropdown, but allows multiple selections (checkbox style)
             local expanded = false
             local selected = default or {}
             local dropdownFrame = create("Frame", {
                 Parent = category.Body,
                 Size = UDim2.new(1, 0, 0, 36),
                 BackgroundTransparency = 1,
-                Name = "DropdownToggle_" .. name:gsub("%s+", "_"), -- Adiciona um nome
+                Name = "DropdownToggle_" .. name:gsub("%s+", "_"),
             })
             local button = create("TextButton", {
                 Parent = dropdownFrame,
@@ -585,6 +578,7 @@ function MSHUB:AddTab(name, options)
                 button.Text = "["..name.." "..(expanded and "–" or "+").."]"
                 listFrame.Visible = expanded
             end)
+            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, dropdownFrame)
             return dropdownFrame
         end
 
@@ -598,8 +592,9 @@ function MSHUB:AddTab(name, options)
                 TextSize = 15,
                 TextColor3 = selfRef.Theme.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Name = "Label_" .. text:gsub("%s+", "_"), -- Adiciona um nome
+                Name = "Label_" .. text:gsub("%s+", "_"),
             })
+            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, label)
             return label
         end
 
@@ -615,14 +610,14 @@ function MSHUB:AddTab(name, options)
                 TextSize = 16,
                 TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
-                Name = "Button_" .. name:gsub("%s+", "_"), -- Adiciona um nome
+                Name = "Button_" .. name:gsub("%s+", "_"),
             })
             btn.MouseButton1Click:Connect(callback)
+            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, btn)
             return btn
         end
 
         function category:AddColorPicker(name, default, callback)
-            -- For demo: just a dropdown of a few colors
             local colors = {
                 ["White"] = Color3.fromRGB(255,255,255),
                 ["Black"] = Color3.fromRGB(0,0,0),
@@ -634,7 +629,7 @@ function MSHUB:AddTab(name, options)
             local picker = category:AddDropdown(name, {"White","Black","Red","Green","Blue","Accent"}, "Accent", function(selected)
                 if callback then callback(colors[selected] or selfRef.Theme.Text) end
             end)
-            picker.Name = "ColorPicker_" .. name:gsub("%s+", "_") -- Adiciona um nome
+            picker.Name = "ColorPicker_" .. name:gsub("%s+", "_")
             return picker
         end
 
@@ -649,13 +644,21 @@ end
 function MSHUB:ShowTab(tab)
     -- Hide all tab bodies, show selected one
     for _, t in ipairs(self.Tabs) do
-        t.Body.Visible = false
-        t.TabButton.BackgroundColor3 = self.Theme.Background
-        t.TabButton.TextColor3 = self.Theme.Text
+        if t.Body then
+            t.Body.Visible = false
+        end
+        if t.TabButton then
+            t.TabButton.BackgroundColor3 = self.Theme.Background
+            t.TabButton.TextColor3 = self.Theme.Text
+        end
     end
-    tab.Body.Visible = true
-    tab.TabButton.BackgroundColor3 = self.Theme.Accent
-    tab.TabButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Cor do texto mais clara para o botão ativo
+    if tab.Body then
+        tab.Body.Visible = true
+    end
+    if tab.TabButton then
+        tab.TabButton.BackgroundColor3 = self.Theme.Accent
+        tab.TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
 end
 
 function MSHUB:setOpen(bool)
@@ -665,12 +668,11 @@ end
 
 -- SETTINGS & CONFIG
 function MSHUB:SaveSettings()
-    -- Store current settings for demo purposes
     self.LastSettings = {
-        ThemeName = self.ThemeName, -- Salva o nome do tema, não o objeto Color3
-        FontName = self.Font.Name, -- Salva o nome da fonte
+        ThemeName = self.ThemeName,
+        FontName = self.Font.Name,
         TextColor = self.Theme.Text,
-        -- Adicione mais configurações de controle aqui
+        -- Add more settings as needed
     }
     warn("Configurações salvas:", self.LastSettings)
 end
@@ -698,7 +700,7 @@ function MSHUB:ApplyTheme(themeName)
     if not theme then return end
     self.Theme = deepCopy(theme)
     self.ThemeName = themeName
-    self.Font = self.Theme.Font -- Garante que a fonte do tema seja aplicada
+    self.Font = self.Theme.Font
     self:RefreshTheme()
 end
 
@@ -714,7 +716,6 @@ function MSHUB:ChangeFontStyle(fontName)
 end
 
 function MSHUB:RefreshTheme()
-    -- Atualiza as cores e fontes de todos os elementos da UI
     self.Menu.BackgroundColor3 = self.Theme.Background
     self.Menu.BorderColor3 = self.Theme.Border
     self.TitleLabel.TextColor3 = self.Theme.Text
@@ -730,62 +731,66 @@ function MSHUB:RefreshTheme()
     self.LockToggle.TextColor3 = self.Theme.Text
     self.LockToggle.Font = self.Theme.Font
 
-    -- Percorre as abas
     for _, tab in ipairs(self.Tabs) do
-        -- Atualiza os botões de aba
-        tab.TabButton.BackgroundColor3 = (tab.Body.Visible and self.Theme.Accent) or self.Theme.Background
-        tab.TabButton.BorderColor3 = self.Theme.Border
-        tab.TabButton.TextColor3 = (tab.Body.Visible and Color3.fromRGB(255, 255, 255)) or self.Theme.Text -- Cor do texto para botão ativo/inativo
-        tab.TabButton.Font = self.Theme.Font
+        if tab.TabButton then
+            tab.TabButton.BackgroundColor3 = (tab.Body and tab.Body.Visible and self.Theme.Accent) or self.Theme.Background
+            tab.TabButton.BorderColor3 = self.Theme.Border
+            tab.TabButton.TextColor3 = (tab.Body and tab.Body.Visible and Color3.fromRGB(255, 255, 255)) or self.Theme.Text
+            tab.TabButton.Font = self.Theme.Font
+        end
 
-        -- Percorre as categorias dentro da aba
         for _, category in ipairs(tab.Categories) do
-            category.Frame.BackgroundColor3 = self.Theme.Background
-            category.Frame.BorderColor3 = self.Theme.Border
-            category.Title.TextColor3 = self.Theme.Text
-            category.Title.Font = self.Theme.Font
+            if category.Frame then
+                category.Frame.BackgroundColor3 = self.Theme.Background
+                category.Frame.BorderColor3 = self.Theme.Border
+            end
+            if category.Title then
+                category.Title.TextColor3 = self.Theme.Text
+                category.Title.Font = self.Theme.Font
+            end
 
-            -- Percorre os controles dentro da categoria
-            for _, control in ipairs(category.Body:GetChildren()) do
-                if control:IsA("TextButton") then
-                    control.BackgroundColor3 = self.Theme.Background
-                    control.BorderColor3 = self.Theme.Border
-                    control.TextColor3 = self.Theme.Text
-                    control.Font = self.Theme.Font
-                elseif control:IsA("TextLabel") then
-                    control.TextColor3 = self.Theme.Text
-                    control.Font = self.Theme.Font
-                elseif control:IsA("Frame") and control.Name:find("Slider") then
-                    local sliderBar = control:FindFirstChild("SliderBar")
-                    if sliderBar then
-                        sliderBar.BackgroundColor3 = self.Theme.Border
-                        sliderBar.BorderColor3 = self.Theme.Accent
-                        local fill = sliderBar:FindFirstChild("Fill")
-                        if fill then
-                            fill.BackgroundColor3 = self.Theme.Accent
+            if category.Controls then
+                for _, control in ipairs(category.Controls) do
+                    if control:IsA("TextButton") then
+                        control.BackgroundColor3 = self.Theme.Background
+                        control.BorderColor3 = self.Theme.Border
+                        control.TextColor3 = self.Theme.Text
+                        control.Font = self.Theme.Font
+                    elseif control:IsA("TextLabel") then
+                        control.TextColor3 = self.Theme.Text
+                        control.Font = self.Theme.Font
+                    elseif control:IsA("Frame") and control.Name:find("Slider") then
+                        local sliderBar = control:FindFirstChild("SliderBar")
+                        if sliderBar then
+                            sliderBar.BackgroundColor3 = self.Theme.Border
+                            sliderBar.BorderColor3 = self.Theme.Accent
+                            local fill = sliderBar:FindFirstChild("Fill")
+                            if fill then
+                                fill.BackgroundColor3 = self.Theme.Accent
+                            end
                         end
-                    end
-                    local label = control:FindFirstChildOfClass("TextLabel")
-                    if label then
-                        label.TextColor3 = self.Theme.Text
-                        label.Font = self.Theme.Font
-                    end
-                elseif control:IsA("Frame") and control.Name:find("Dropdown") then
-                    local button = control:FindFirstChildOfClass("TextButton")
-                    if button then
-                        button.BackgroundColor3 = self.Theme.Background
-                        button.BorderColor3 = self.Theme.Border
-                        button.TextColor3 = self.Theme.Text
-                        button.Font = self.Theme.Font
-                    end
-                    local listFrame = control:FindFirstChild("DropdownList")
-                    if listFrame then
-                        listFrame.BackgroundColor3 = self.Theme.Background
-                        listFrame.BorderColor3 = self.Theme.Border
-                        for _, itemBtn in ipairs(listFrame:GetChildren()) do
-                            if itemBtn:IsA("TextButton") then
-                                itemBtn.TextColor3 = self.Theme.Text
-                                itemBtn.Font = self.Theme.Font
+                        local label = control:FindFirstChildOfClass("TextLabel")
+                        if label then
+                            label.TextColor3 = self.Theme.Text
+                            label.Font = self.Theme.Font
+                        end
+                    elseif control:IsA("Frame") and control.Name:find("Dropdown") then
+                        local button = control:FindFirstChildOfClass("TextButton")
+                        if button then
+                            button.BackgroundColor3 = self.Theme.Background
+                            button.BorderColor3 = self.Theme.Border
+                            button.TextColor3 = self.Theme.Text
+                            button.Font = self.Theme.Font
+                        end
+                        local listFrame = control:FindFirstChild("DropdownList")
+                        if listFrame then
+                            listFrame.BackgroundColor3 = self.Theme.Background
+                            listFrame.BorderColor3 = self.Theme.Border
+                            for _, itemBtn in ipairs(listFrame:GetChildren()) do
+                                if itemBtn:IsA("TextButton") then
+                                    itemBtn.TextColor3 = self.Theme.Text
+                                    itemBtn.Font = self.Theme.Font
+                                end
                             end
                         end
                     end
@@ -795,5 +800,4 @@ function MSHUB:RefreshTheme()
     end
 end
 
--- RETURN LIBRARY
 return MSHUB
