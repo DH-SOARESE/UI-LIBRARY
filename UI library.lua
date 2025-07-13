@@ -111,11 +111,12 @@ function MSHUB:_buildUI()
         Name = "Menu",
         Parent = self.ScreenGui,
         Size = UDim2.new(0, 500, 0, 400),
-        Position = UDim2.new(0.5, -250, 0.5, -200),
+        -- Centraliza o menu usando AnchorPoint e Position
+        Position = UDim2.new(0.5, 0, 0.5, 0), -- Posição no centro
+        AnchorPoint = Vector2.new(0.5, 0.5), -- Ponto de ancoragem no centro do objeto
         BackgroundColor3 = self.Theme.Background,
         BorderColor3 = self.Theme.Border,
         BorderSizePixel = 2,
-        AnchorPoint = Vector2.new(0.5, 0.5),
         Visible = false,
     })
 
@@ -263,7 +264,7 @@ function MSHUB:_buildConfigTab()
         cat:AddButton("Resetar para Padrão", function()
             self:ResetSettings()
         end)
-        cat:AddDropdown("Tema", {"Dark", "Light"}, self.ThemeName or "Dark", function(selected)
+        cat:AddDropdown("Tema", {"Dark", "Light"}, self.ThemeName, function(selected) -- Usa self.ThemeName
             self:ApplyTheme(selected)
         end)
         cat:AddColorPicker("Cor do Texto", self.Theme.Text, function(color)
@@ -389,12 +390,14 @@ function MSHUB:AddTab(name, options)
                 TextSize = 16,
                 TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
+                Name = "Toggle_" .. name:gsub("%s+", "_"), -- Adiciona um nome para o controle
             })
             btn.MouseButton1Click:Connect(function()
                 state = not state
                 btn.Text = (state and "■" or "□").." "..name
                 if callback then callback(state) end
             end)
+            return btn -- Retorna o controle para atualização de tema
         end
 
         function category:AddSlider(name, min, max, default, callback)
@@ -403,6 +406,7 @@ function MSHUB:AddTab(name, options)
                 Parent = category.Body,
                 Size = UDim2.new(1, 0, 0, 38),
                 BackgroundTransparency = 1,
+                Name = "Slider_" .. name:gsub("%s+", "_"), -- Adiciona um nome
             })
             local label = create("TextLabel", {
                 Parent = sliderFrame,
@@ -454,6 +458,7 @@ function MSHUB:AddTab(name, options)
             sliderBar.InputChanged:Connect(function(input)
                 if dragging then updateSlider(input) end
             end)
+            return sliderFrame
         end
 
         function category:AddDropdown(name, options, default, callback)
@@ -463,6 +468,7 @@ function MSHUB:AddTab(name, options)
                 Parent = category.Body,
                 Size = UDim2.new(1, 0, 0, 36),
                 BackgroundTransparency = 1,
+                Name = "Dropdown_" .. name:gsub("%s+", "_"), -- Adiciona um nome
             })
             local button = create("TextButton", {
                 Parent = dropdownFrame,
@@ -515,6 +521,7 @@ function MSHUB:AddTab(name, options)
                 button.Text = "["..name.." "..(expanded and "–" or "+").."]"
                 listFrame.Visible = expanded
             end)
+            return dropdownFrame
         end
 
         function category:AddDropdownToggle(name, options, default, callback)
@@ -525,6 +532,7 @@ function MSHUB:AddTab(name, options)
                 Parent = category.Body,
                 Size = UDim2.new(1, 0, 0, 36),
                 BackgroundTransparency = 1,
+                Name = "DropdownToggle_" .. name:gsub("%s+", "_"), -- Adiciona um nome
             })
             local button = create("TextButton", {
                 Parent = dropdownFrame,
@@ -577,10 +585,11 @@ function MSHUB:AddTab(name, options)
                 button.Text = "["..name.." "..(expanded and "–" or "+").."]"
                 listFrame.Visible = expanded
             end)
+            return dropdownFrame
         end
 
         function category:AddLabel(text)
-            create("TextLabel", {
+            local label = create("TextLabel", {
                 Parent = category.Body,
                 Size = UDim2.new(1, 0, 0, 20),
                 BackgroundTransparency = 1,
@@ -589,7 +598,9 @@ function MSHUB:AddTab(name, options)
                 TextSize = 15,
                 TextColor3 = selfRef.Theme.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
+                Name = "Label_" .. text:gsub("%s+", "_"), -- Adiciona um nome
             })
+            return label
         end
 
         function category:AddButton(name, callback)
@@ -604,8 +615,10 @@ function MSHUB:AddTab(name, options)
                 TextSize = 16,
                 TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
+                Name = "Button_" .. name:gsub("%s+", "_"), -- Adiciona um nome
             })
             btn.MouseButton1Click:Connect(callback)
+            return btn
         end
 
         function category:AddColorPicker(name, default, callback)
@@ -618,9 +631,11 @@ function MSHUB:AddTab(name, options)
                 ["Blue"] = Color3.fromRGB(0,0,255),
                 ["Accent"] = selfRef.Theme.Accent,
             }
-            category:AddDropdown(name, {"White","Black","Red","Green","Blue","Accent"}, "Accent", function(selected)
+            local picker = category:AddDropdown(name, {"White","Black","Red","Green","Blue","Accent"}, "Accent", function(selected)
                 if callback then callback(colors[selected] or selfRef.Theme.Text) end
             end)
+            picker.Name = "ColorPicker_" .. name:gsub("%s+", "_") -- Adiciona um nome
+            return picker
         end
 
         table.insert(tab.Categories, category)
@@ -636,9 +651,11 @@ function MSHUB:ShowTab(tab)
     for _, t in ipairs(self.Tabs) do
         t.Body.Visible = false
         t.TabButton.BackgroundColor3 = self.Theme.Background
+        t.TabButton.TextColor3 = self.Theme.Text
     end
     tab.Body.Visible = true
     tab.TabButton.BackgroundColor3 = self.Theme.Accent
+    tab.TabButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Cor do texto mais clara para o botão ativo
 end
 
 function MSHUB:setOpen(bool)
@@ -650,21 +667,30 @@ end
 function MSHUB:SaveSettings()
     -- Store current settings for demo purposes
     self.LastSettings = {
-        Theme = self.Theme,
-        Font = self.Font,
-        -- Add more as needed
+        ThemeName = self.ThemeName, -- Salva o nome do tema, não o objeto Color3
+        FontName = self.Font.Name, -- Salva o nome da fonte
+        TextColor = self.Theme.Text,
+        -- Adicione mais configurações de controle aqui
     }
+    warn("Configurações salvas:", self.LastSettings)
 end
 
 function MSHUB:LoadSettings()
-    if not self.LastSettings then return end
-    self:ApplyTheme(self.LastSettings.Theme)
-    self:ChangeFontStyle(self.LastSettings.Font.Name)
+    if not self.LastSettings then
+        warn("Nenhuma configuração salva encontrada.")
+        return
+    end
+    self:ApplyTheme(self.LastSettings.ThemeName)
+    self:ChangeFontStyle(self.LastSettings.FontName)
+    self:ChangeFontColor(self.LastSettings.TextColor)
+    warn("Configurações carregadas.")
 end
 
 function MSHUB:ResetSettings()
     self:ApplyTheme("Dark")
     self:ChangeFontStyle("Gotham")
+    self:ChangeFontColor(DEFAULT_THEME.Text)
+    warn("Configurações resetadas para o padrão.")
 end
 
 function MSHUB:ApplyTheme(themeName)
@@ -672,6 +698,7 @@ function MSHUB:ApplyTheme(themeName)
     if not theme then return end
     self.Theme = deepCopy(theme)
     self.ThemeName = themeName
+    self.Font = self.Theme.Font -- Garante que a fonte do tema seja aplicada
     self:RefreshTheme()
 end
 
@@ -687,25 +714,86 @@ function MSHUB:ChangeFontStyle(fontName)
 end
 
 function MSHUB:RefreshTheme()
-    -- Refresh all UI colors/fonts (simplified)
+    -- Atualiza as cores e fontes de todos os elementos da UI
     self.Menu.BackgroundColor3 = self.Theme.Background
     self.Menu.BorderColor3 = self.Theme.Border
     self.TitleLabel.TextColor3 = self.Theme.Text
     self.TitleLabel.Font = self.Theme.Font
-    -- ... iterate and refresh all controls recursively ...
+
+    self.MenuToggle.BackgroundColor3 = self.Theme.Background
+    self.MenuToggle.BorderColor3 = self.Theme.Border
+    self.MenuToggle.TextColor3 = self.Theme.Text
+    self.MenuToggle.Font = self.Theme.Font
+
+    self.LockToggle.BackgroundColor3 = self.Theme.Background
+    self.LockToggle.BorderColor3 = self.Theme.Border
+    self.LockToggle.TextColor3 = self.Theme.Text
+    self.LockToggle.Font = self.Theme.Font
+
+    -- Percorre as abas
+    for _, tab in ipairs(self.Tabs) do
+        -- Atualiza os botões de aba
+        tab.TabButton.BackgroundColor3 = (tab.Body.Visible and self.Theme.Accent) or self.Theme.Background
+        tab.TabButton.BorderColor3 = self.Theme.Border
+        tab.TabButton.TextColor3 = (tab.Body.Visible and Color3.fromRGB(255, 255, 255)) or self.Theme.Text -- Cor do texto para botão ativo/inativo
+        tab.TabButton.Font = self.Theme.Font
+
+        -- Percorre as categorias dentro da aba
+        for _, category in ipairs(tab.Categories) do
+            category.Frame.BackgroundColor3 = self.Theme.Background
+            category.Frame.BorderColor3 = self.Theme.Border
+            category.Title.TextColor3 = self.Theme.Text
+            category.Title.Font = self.Theme.Font
+
+            -- Percorre os controles dentro da categoria
+            for _, control in ipairs(category.Body:GetChildren()) do
+                if control:IsA("TextButton") then
+                    control.BackgroundColor3 = self.Theme.Background
+                    control.BorderColor3 = self.Theme.Border
+                    control.TextColor3 = self.Theme.Text
+                    control.Font = self.Theme.Font
+                elseif control:IsA("TextLabel") then
+                    control.TextColor3 = self.Theme.Text
+                    control.Font = self.Theme.Font
+                elseif control:IsA("Frame") and control.Name:find("Slider") then
+                    local sliderBar = control:FindFirstChild("SliderBar")
+                    if sliderBar then
+                        sliderBar.BackgroundColor3 = self.Theme.Border
+                        sliderBar.BorderColor3 = self.Theme.Accent
+                        local fill = sliderBar:FindFirstChild("Fill")
+                        if fill then
+                            fill.BackgroundColor3 = self.Theme.Accent
+                        end
+                    end
+                    local label = control:FindFirstChildOfClass("TextLabel")
+                    if label then
+                        label.TextColor3 = self.Theme.Text
+                        label.Font = self.Theme.Font
+                    end
+                elseif control:IsA("Frame") and control.Name:find("Dropdown") then
+                    local button = control:FindFirstChildOfClass("TextButton")
+                    if button then
+                        button.BackgroundColor3 = self.Theme.Background
+                        button.BorderColor3 = self.Theme.Border
+                        button.TextColor3 = self.Theme.Text
+                        button.Font = self.Theme.Font
+                    end
+                    local listFrame = control:FindFirstChild("DropdownList")
+                    if listFrame then
+                        listFrame.BackgroundColor3 = self.Theme.Background
+                        listFrame.BorderColor3 = self.Theme.Border
+                        for _, itemBtn in ipairs(listFrame:GetChildren()) do
+                            if itemBtn:IsA("TextButton") then
+                                itemBtn.TextColor3 = self.Theme.Text
+                                itemBtn.Font = self.Theme.Font
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 -- RETURN LIBRARY
 return MSHUB
-
--- USAGE EXAMPLE (for README, not executed by library itself):
---[[
-local MSHUB = loadstring(game:HttpGet("https://github.com/your-github-repo/raw/main/mshub_ui_library2.lua"))()
-local ui = MSHUB.new({Title = "DOORS UI", Theme = "Dark"})
-local tab = ui:AddTab("Gameplay")
-local cat = tab:AddCategory("Player")
-cat:AddToggle("Infinite Stamina", false, function(v) print("Stamina:", v) end)
-cat:AddSlider("Speed", 16, 50, 16, function(val) print("Speed:", val) end)
-cat:AddDropdown("Difficulty", {"Easy","Normal","Hard"}, "Normal", function(opt) print("Difficulty:", opt) end)
-cat:AddLabel("Section Info")
-]]
