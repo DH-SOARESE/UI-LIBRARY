@@ -132,13 +132,18 @@ function MSHUB:_buildUI()
         Position = UDim2.new(0, 16, 0, 0),
     })
 
-    -- Tab Bar
-    self.TabBar = create("Frame", {
+    -- Tab Bar (now is a ScrollView for horizontal scrolling)
+    self.TabBar = create("ScrollingFrame", {
         Parent = self.Menu,
         Name = "TabBar",
         Position = UDim2.new(0, 0, 0, 38),
         Size = UDim2.new(1, 0, 0, 36),
         BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        CanvasSize = UDim2.new(0, 0, 1, 0),
+        ScrollBarThickness = 6,
+        ScrollingDirection = Enum.ScrollingDirection.X,
+        ZIndex = 20, -- Coloca acima de todas as camadas normais
     })
 
     self.TabsList = create("UIListLayout", {
@@ -149,6 +154,11 @@ function MSHUB:_buildUI()
         VerticalAlignment = Enum.VerticalAlignment.Center,
     })
 
+    -- Ajusta o CanvasSize do TabBar ao adicionar/remover tabs
+    self.TabsList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        self.TabBar.CanvasSize = UDim2.new(0, self.TabsList.AbsoluteContentSize.X + 12, 1, 0)
+    end)
+
     -- Body (where categories appear)
     self.Body = create("Frame", {
         Parent = self.Menu,
@@ -157,6 +167,7 @@ function MSHUB:_buildUI()
         Size = UDim2.new(1, 0, 1, -74),
         BackgroundTransparency = 1,
         ClipsDescendants = true,
+        ZIndex = 10,
     })
 end
 
@@ -176,6 +187,7 @@ function MSHUB:_buildMenuToggle()
         TextColor3 = self.Theme.Text,
         AutoButtonColor = true,
         AnchorPoint = Vector2.new(0, 0.5),
+        ZIndex = 100, -- sempre acima
     })
 
     self.MenuToggle.MouseButton1Click:Connect(function()
@@ -199,6 +211,7 @@ function MSHUB:_buildLockToggle()
         TextColor3 = self.Theme.Text,
         AutoButtonColor = true,
         AnchorPoint = Vector2.new(0, 0),
+        ZIndex = 100,
     })
 
     self.LockToggle.MouseButton1Click:Connect(function()
@@ -291,6 +304,7 @@ function MSHUB:AddTab(name, options)
         AutoButtonColor = true,
         LayoutOrder = tab.LayoutOrder,
         Name = name,
+        ZIndex = 21, -- mais acima que o body
     })
     tab.TabButton = tabBtn
 
@@ -299,12 +313,18 @@ function MSHUB:AddTab(name, options)
     end)
 
     -- Build tab body container (not visible until selected)
-    tab.Body = create("Frame", {
+    tab.Body = create("ScrollingFrame", { -- Agora ScrollView
         Parent = self.Body,
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Visible = false,
-        Name = name .. "_Body"
+        Name = name .. "_Body",
+        BorderSizePixel = 0,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        ScrollBarThickness = 8,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        ZIndex = 11,
+        ClipsDescendants = false,
     })
 
     tab.ListLayout = create("UIListLayout", {
@@ -312,6 +332,11 @@ function MSHUB:AddTab(name, options)
         Padding = UDim.new(0, 12),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
+
+    -- Ajuste dinâmico do CanvasSize
+    tab.ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        tab.Body.CanvasSize = UDim2.new(0, 0, 0, tab.ListLayout.AbsoluteContentSize.Y + 12)
+    end)
 
     -- Tab API
     function tab:AddCategory(catName, buildFunc)
@@ -452,6 +477,7 @@ function MSHUB:AddTab(name, options)
                 TextSize = 16,
                 TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
+                ZIndex = 100, -- para aparecer acima de tudo
             })
             local listFrame = create("Frame", {
                 Parent = dropdownFrame,
@@ -461,7 +487,7 @@ function MSHUB:AddTab(name, options)
                 BorderColor3 = selfRef.Theme.Border,
                 BorderSizePixel = 1,
                 Visible = false,
-                ZIndex = 2,
+                ZIndex = 101, -- sempre acima de tudo
                 Name = "DropdownList"
             })
             local layout = create("UIListLayout", {
@@ -478,6 +504,7 @@ function MSHUB:AddTab(name, options)
                     TextSize = 15,
                     TextColor3 = selfRef.Theme.Text,
                     AutoButtonColor = true,
+                    ZIndex = 102,
                 })
                 optBtn.MouseButton1Click:Connect(function()
                     selected = opt
@@ -514,6 +541,7 @@ function MSHUB:AddTab(name, options)
                 TextSize = 16,
                 TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
+                ZIndex = 100,
             })
             local listFrame = create("Frame", {
                 Parent = dropdownFrame,
@@ -523,7 +551,7 @@ function MSHUB:AddTab(name, options)
                 BorderColor3 = selfRef.Theme.Border,
                 BorderSizePixel = 1,
                 Visible = false,
-                ZIndex = 2,
+                ZIndex = 101,
                 Name = "DropdownList"
             })
             local layout = create("UIListLayout", {
@@ -541,6 +569,7 @@ function MSHUB:AddTab(name, options)
                     TextSize = 15,
                     TextColor3 = selfRef.Theme.Text,
                     AutoButtonColor = true,
+                    ZIndex = 102,
                 })
                 optBtn.MouseButton1Click:Connect(function()
                     state = not state
