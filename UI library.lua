@@ -146,7 +146,6 @@ function MSHUB:_buildUI()
         BorderSizePixel = 0,
         ClipsDescendants = true,
     })
-
     self.TabsList = create("UIListLayout", {
         Parent = self.TabBar,
         FillDirection = Enum.FillDirection.Horizontal,
@@ -156,11 +155,6 @@ function MSHUB:_buildUI()
     })
 
     -- Body (Frame for tab content, with vertical scroll bar at right)
-    -- Now: make the menu body area a Frame with a vertical ScrollBar at the right
-    -- We'll create a vertical frame container for tabs, and a scrollbar next to it
-    -- We'll use a simple custom scrollbar implementation for the menu
-
-    -- Create the tab content container (Frame inside Menu)
     self.BodyContainer = create("Frame", {
         Parent = self.Menu,
         Name = "BodyContainer",
@@ -171,8 +165,8 @@ function MSHUB:_buildUI()
         BorderSizePixel = 0,
     })
 
-    -- The actual content (will be filled by tab bodies)
-    self.Body = create("Frame", {
+    -- The content area will now use a single ScrollingFrame to hold all categories of the selected tab
+    self.Body = create("ScrollingFrame", {
         Parent = self.BodyContainer,
         Name = "Body",
         Position = UDim2.new(0, 0, 0, 0),
@@ -180,6 +174,17 @@ function MSHUB:_buildUI()
         BackgroundTransparency = 1,
         ClipsDescendants = true,
         BorderSizePixel = 0,
+        ScrollBarThickness = 0, -- Hide default scrollbar
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ZIndex = 1,
+    })
+
+    self.BodyLayout = create("UIListLayout", {
+        Parent = self.Body,
+        Padding = UDim.new(0, 16),
+        SortOrder = Enum.SortOrder.LayoutOrder,
     })
 
     -- Custom vertical scrollbar (at right edge)
@@ -206,29 +211,12 @@ function MSHUB:_buildUI()
         ZIndex = 11,
     })
 
-    -- Add scrolling logic
-    self.ScrollPosition = 0
+    -- Add scrolling logic (for the vertical scroll bar)
+    local draggingThumb = false
+    local dragStartY, thumbStartY
 
     local function updateScrollBar()
-        -- Find the currently visible tab's body (ScrollingFrame)
-        local visibleTab
-        for _, tab in ipairs(self.Tabs) do
-            if tab.Body and tab.Body.Visible then
-                visibleTab = tab
-                break
-            end
-        end
-        if not visibleTab then
-            self.ScrollBar.Visible = false
-            return
-        end
-
-        local body = visibleTab.Body
-        if not body:IsA("ScrollingFrame") then
-            self.ScrollBar.Visible = false
-            return
-        end
-
+        local body = self.Body
         local canvas = body.CanvasSize.Y.Offset
         local view = body.AbsoluteWindowSize.Y
         if canvas <= view + 2 then
@@ -250,10 +238,6 @@ function MSHUB:_buildUI()
         self.ScrollThumb.Position = UDim2.new(0, 0, 0, y)
     end
 
-    -- Scroll from scrollbar drag
-    local draggingThumb = false
-    local dragStartY, thumbStartY
-
     self.ScrollThumb.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             draggingThumb = true
@@ -268,20 +252,13 @@ function MSHUB:_buildUI()
             local newY = math.clamp(thumbStartY + delta, 0, self.ScrollBar.AbsoluteSize.Y - self.ScrollThumb.AbsoluteSize.Y)
             self.ScrollThumb.Position = UDim2.new(0, 0, 0, newY)
 
-            -- Update canvas position of visible tab
-            for _, tab in ipairs(self.Tabs) do
-                if tab.Body and tab.Body.Visible then
-                    local body = tab.Body
-                    if body:IsA("ScrollingFrame") then
-                        local canvas = body.CanvasSize.Y.Offset
-                        local view = body.AbsoluteWindowSize.Y
-                        local maxOffset = canvas - view
-                        if maxOffset > 0 then
-                            local percent = newY / (self.ScrollBar.AbsoluteSize.Y - self.ScrollThumb.AbsoluteSize.Y)
-                            body.CanvasPosition = Vector2.new(0, percent * maxOffset)
-                        end
-                    end
-                end
+            local body = self.Body
+            local canvas = body.CanvasSize.Y.Offset
+            local view = body.AbsoluteWindowSize.Y
+            local maxOffset = canvas - view
+            if maxOffset > 0 then
+                local percent = newY / (self.ScrollBar.AbsoluteSize.Y - self.ScrollThumb.AbsoluteSize.Y)
+                body.CanvasPosition = Vector2.new(0, percent * maxOffset)
             end
         end
     end)
@@ -295,16 +272,11 @@ function MSHUB:_buildUI()
     -- Mouse wheel and touch scroll event
     self.BodyContainer.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseWheel then
-            for _, tab in ipairs(self.Tabs) do
-                if tab.Body and tab.Body.Visible and tab.Body:IsA("ScrollingFrame") then
-                    local body = tab.Body
-                    -- Scroll up/down
-                    local scrollAmount = -input.Position.Z * 32
-                    local newPos = math.clamp(body.CanvasPosition.Y + scrollAmount, 0, math.max(0, body.CanvasSize.Y.Offset - body.AbsoluteWindowSize.Y))
-                    body.CanvasPosition = Vector2.new(0, newPos)
-                    updateScrollBar()
-                end
-            end
+            local body = self.Body
+            local scrollAmount = -input.Position.Z * 32
+            local newPos = math.clamp(body.CanvasPosition.Y + scrollAmount, 0, math.max(0, body.CanvasSize.Y.Offset - body.AbsoluteWindowSize.Y))
+            body.CanvasPosition = Vector2.new(0, newPos)
+            updateScrollBar()
         end
     end)
 
@@ -424,6 +396,7 @@ function MSHUB:AddTab(name, options)
         IsConfig = options.IsConfig,
         Icon = options.Icon or "",
         LayoutOrder = options.LayoutOrder or #self.Tabs + 1,
+        TabButton = nil,
     }
     table.insert(self.Tabs, tab)
 
@@ -448,362 +421,373 @@ function MSHUB:AddTab(name, options)
         self:ShowTab(tab)
     end)
 
-    -- Build tab body container (now always present under .Body, only one visible at a time)
-    tab.Body = create("ScrollingFrame", {
-        Parent = self.Body,
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Visible = false,
-        Name = name .. "_Body",
-        ScrollBarThickness = 0, -- disable default ScrollBar
-        CanvasSize = UDim2.new(0, 0, 0, 0),
-        ScrollingDirection = Enum.ScrollingDirection.Y,
-        AutomaticCanvasSize = Enum.AutomaticSize.Y,
-        BorderSizePixel = 0,
-        ClipsDescendants = true,
-        ZIndex = 1,
-    })
-
-    tab.ListLayout = create("UIListLayout", {
-        Parent = tab.Body,
-        Padding = UDim.new(0, 12),
-        SortOrder = Enum.SortOrder.LayoutOrder,
-    })
-
     -- Tab API
     function tab:AddCategory(catName, buildFunc)
         local category = {
             Name = catName,
             Controls = {},
         }
-        category.Frame = create("Frame", {
-            Parent = tab.Body,
-            Size = UDim2.new(1, -24, 0, 0),
-            BackgroundColor3 = selfRef.Theme.Background,
-            BorderColor3 = selfRef.Theme.Border,
-            BorderSizePixel = 1,
-            Name = catName,
-            AutomaticSize = Enum.AutomaticSize.Y,
-        })
-        category.Title = create("TextLabel", {
-            Parent = category.Frame,
-            Size = UDim2.new(1, 0, 0, 24),
-            BackgroundTransparency = 1,
-            Text = catName,
-            Font = selfRef.Font,
-            TextSize = 20,
-            TextColor3 = selfRef.Theme.Text,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Position = UDim2.new(0, 8, 0, 0),
-        })
-        category.Body = create("Frame", {
-            Parent = category.Frame,
-            Size = UDim2.new(1, -8, 1, -24),
-            Position = UDim2.new(0, 8, 0, 24),
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            Name = "ControlsBody",
-            AutomaticSize = Enum.AutomaticSize.Y,
-            ClipsDescendants = true,
-        })
-        category.BodyLayout = create("UIListLayout", {
-            Parent = category.Body,
-            Padding = UDim.new(0, 6),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        })
-
-        -- Control adders (as before, insert controls into category.Body)
-        function category:AddToggle(name, default, callback)
-            local state = default and true or false
-            local btn = create("TextButton", {
-                Parent = category.Body,
-                Size = UDim2.new(1, 0, 0, 32),
-                BackgroundColor3 = selfRef.Theme.Background,
-                BorderColor3 = selfRef.Theme.Border,
-                BorderSizePixel = 1,
-                Text = (state and "■" or "□").." "..name,
-                Font = selfRef.Font,
-                TextSize = 16,
-                TextColor3 = selfRef.Theme.Text,
-                AutoButtonColor = true,
-                Name = "Toggle_" .. name:gsub("%s+", "_"),
-            })
-            btn.MouseButton1Click:Connect(function()
-                state = not state
-                btn.Text = (state and "■" or "□").." "..name
-                if callback then callback(state) end
-            end)
-            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, btn)
-            return btn
-        end
-
-        function category:AddSlider(name, min, max, default, callback)
-            local value = default or min
-            local sliderFrame = create("Frame", {
-                Parent = category.Body,
-                Size = UDim2.new(1, 0, 0, 38),
-                BackgroundTransparency = 1,
-                Name = "Slider_" .. name:gsub("%s+", "_"),
-            })
-            local label = create("TextLabel", {
-                Parent = sliderFrame,
-                Size = UDim2.new(0.4, 0, 1, 0),
-                BackgroundTransparency = 1,
-                Text = name..": "..tostring(value),
-                Font = selfRef.Font,
-                TextSize = 16,
-                TextColor3 = selfRef.Theme.Text,
-                TextXAlignment = Enum.TextXAlignment.Left,
-            })
-            local sliderBar = create("Frame", {
-                Parent = sliderFrame,
-                Size = UDim2.new(0.55, -12, 0, 14),
-                Position = UDim2.new(0.45, 6, 0.5, -7),
-                BackgroundColor3 = selfRef.Theme.Border,
-                BorderColor3 = selfRef.Theme.Accent,
-                BorderSizePixel = 2,
-                Name = "SliderBar",
-                ClipsDescendants = true,
-            })
-            local fill = create("Frame", {
-                Parent = sliderBar,
-                Size = UDim2.new((value-min)/(max-min), 0, 1, 0),
-                BackgroundColor3 = selfRef.Theme.Accent,
-                BorderSizePixel = 0,
-                Name = "Fill",
-            })
-            local dragging = false
-
-            local function updateSlider(input)
-                local rel = (input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X
-                rel = math.clamp(rel, 0, 1)
-                value = math.floor((min + rel * (max - min)) + 0.5)
-                fill.Size = UDim2.new(rel, 0, 1, 0)
-                label.Text = name..": "..tostring(value)
-                if callback then callback(value) end
-            end
-
-            sliderBar.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragging = true
-                    updateSlider(input)
-                end
-            end)
-            sliderBar.InputEnded:Connect(function(input)
-                dragging = false
-            end)
-            sliderBar.InputChanged:Connect(function(input)
-                if dragging then updateSlider(input) end
-            end)
-            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, sliderFrame)
-            return sliderFrame
-        end
-
-        function category:AddDropdown(name, options, default, callback)
-            local expanded = false
-            local selected = default or options[1]
-            local dropdownFrame = create("Frame", {
-                Parent = category.Body,
-                Size = UDim2.new(1, 0, 0, 36),
-                BackgroundTransparency = 1,
-                Name = "Dropdown_" .. name:gsub("%s+", "_"),
-            })
-            local button = create("TextButton", {
-                Parent = dropdownFrame,
-                Size = UDim2.new(1, 0, 1, 0),
-                BackgroundColor3 = selfRef.Theme.Background,
-                BorderColor3 = selfRef.Theme.Border,
-                BorderSizePixel = 1,
-                Text = "["..name.." +]",
-                Font = selfRef.Font,
-                TextSize = 16,
-                TextColor3 = selfRef.Theme.Text,
-                AutoButtonColor = true,
-            })
-            local listFrame = create("Frame", {
-                Parent = dropdownFrame,
-                Size = UDim2.new(1, 0, 0, #options*28),
-                Position = UDim2.new(0, 0, 1, 0),
-                BackgroundColor3 = selfRef.Theme.Background,
-                BorderColor3 = selfRef.Theme.Border,
-                BorderSizePixel = 1,
-                Visible = false,
-                ZIndex = 2,
-                Name = "DropdownList"
-            })
-            local layout = create("UIListLayout", {
-                Parent = listFrame,
-                Padding = UDim.new(0, 0)
-            })
-            for _, opt in ipairs(options) do
-                local optBtn = create("TextButton", {
-                    Parent = listFrame,
-                    Size = UDim2.new(1, 0, 0, 28),
-                    BackgroundTransparency = 1,
-                    Text = opt,
-                    Font = selfRef.Font,
-                    TextSize = 15,
-                    TextColor3 = selfRef.Theme.Text,
-                    AutoButtonColor = true,
-                })
-                optBtn.MouseButton1Click:Connect(function()
-                    selected = opt
-                    button.Text = "["..name.." +]"
-                    listFrame.Visible = false
-                    expanded = false
-                    if callback then callback(opt) end
-                end)
-            end
-            button.MouseButton1Click:Connect(function()
-                expanded = not expanded
-                button.Text = "["..name.." "..(expanded and "–" or "+").."]"
-                listFrame.Visible = expanded
-            end)
-            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, dropdownFrame)
-            return dropdownFrame
-        end
-
-        function category:AddDropdownToggle(name, options, default, callback)
-            local expanded = false
-            local selected = default or {}
-            local dropdownFrame = create("Frame", {
-                Parent = category.Body,
-                Size = UDim2.new(1, 0, 0, 36),
-                BackgroundTransparency = 1,
-                Name = "DropdownToggle_" .. name:gsub("%s+", "_"),
-            })
-            local button = create("TextButton", {
-                Parent = dropdownFrame,
-                Size = UDim2.new(1, 0, 1, 0),
-                BackgroundColor3 = selfRef.Theme.Background,
-                BorderColor3 = selfRef.Theme.Border,
-                BorderSizePixel = 1,
-                Text = "["..name.." +]",
-                Font = selfRef.Font,
-                TextSize = 16,
-                TextColor3 = selfRef.Theme.Text,
-                AutoButtonColor = true,
-            })
-            local listFrame = create("Frame", {
-                Parent = dropdownFrame,
-                Size = UDim2.new(1, 0, 0, #options*28),
-                Position = UDim2.new(0, 0, 1, 0),
-                BackgroundColor3 = selfRef.Theme.Background,
-                BorderColor3 = selfRef.Theme.Border,
-                BorderSizePixel = 1,
-                Visible = false,
-                ZIndex = 2,
-                Name = "DropdownList"
-            })
-            local layout = create("UIListLayout", {
-                Parent = listFrame,
-                Padding = UDim.new(0, 0)
-            })
-            for _, opt in ipairs(options) do
-                local state = false
-                local optBtn = create("TextButton", {
-                    Parent = listFrame,
-                    Size = UDim2.new(1, 0, 0, 28),
-                    BackgroundTransparency = 1,
-                    Text = "□ "..opt,
-                    Font = selfRef.Font,
-                    TextSize = 15,
-                    TextColor3 = selfRef.Theme.Text,
-                    AutoButtonColor = true,
-                })
-                optBtn.MouseButton1Click:Connect(function()
-                    state = not state
-                    optBtn.Text = (state and "■ " or "□ ")..opt
-                    selected[opt] = state
-                    if callback then callback(selected) end
-                end)
-            end
-            button.MouseButton1Click:Connect(function()
-                expanded = not expanded
-                button.Text = "["..name.." "..(expanded and "–" or "+").."]"
-                listFrame.Visible = expanded
-            end)
-            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, dropdownFrame)
-            return dropdownFrame
-        end
-
-        function category:AddLabel(text)
-            local label = create("TextLabel", {
-                Parent = category.Body,
-                Size = UDim2.new(1, 0, 0, 20),
-                BackgroundTransparency = 1,
-                Text = text,
-                Font = selfRef.Font,
-                TextSize = 15,
-                TextColor3 = selfRef.Theme.Text,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Name = "Label_" .. text:gsub("%s+", "_"),
-            })
-            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, label)
-            return label
-        end
-
-        function category:AddButton(name, callback)
-            local btn = create("TextButton", {
-                Parent = category.Body,
-                Size = UDim2.new(1, 0, 0, 32),
-                BackgroundColor3 = selfRef.Theme.Background,
-                BorderColor3 = selfRef.Theme.Border,
-                BorderSizePixel = 1,
-                Text = name,
-                Font = selfRef.Font,
-                TextSize = 16,
-                TextColor3 = selfRef.Theme.Text,
-                AutoButtonColor = true,
-                Name = "Button_" .. name:gsub("%s+", "_"),
-            })
-            btn.MouseButton1Click:Connect(callback)
-            table.insert(selfRef.Tabs[#selfRef.Tabs].Categories[#selfRef.Tabs[#selfRef.Tabs].Categories].Controls, btn)
-            return btn
-        end
-
-        function category:AddColorPicker(name, default, callback)
-            local colors = {
-                ["White"] = Color3.fromRGB(255,255,255),
-                ["Black"] = Color3.fromRGB(0,0,0),
-                ["Red"] = Color3.fromRGB(255,0,0),
-                ["Green"] = Color3.fromRGB(0,255,0),
-                ["Blue"] = Color3.fromRGB(0,0,255),
-                ["Accent"] = selfRef.Theme.Accent,
-            }
-            local picker = category:AddDropdown(name, {"White","Black","Red","Green","Blue","Accent"}, "Accent", function(selected)
-                if callback then callback(colors[selected] or selfRef.Theme.Text) end
-            end)
-            picker.Name = "ColorPicker_" .. name:gsub("%s+", "_")
-            return picker
-        end
-
+        -- Only *create* the category frame when this tab is visible, and store a build function for lazy building
+        category._buildFunc = buildFunc
         table.insert(tab.Categories, category)
-        if buildFunc then buildFunc(category) end
+        -- If this tab is currently selected, build the frame now
+        if selfRef.CurrentTab == tab then
+            selfRef:_buildCategoryFrame(tab, category)
+        end
         return category
     end
 
     return tab
 end
 
-function MSHUB:ShowTab(tab)
-    -- Hide all tab bodies, show selected one
-    for _, t in ipairs(self.Tabs) do
-        if t.Body then
-            t.Body.Visible = false
+-- Build all category frames for the selected tab inside the Body (ScrollingFrame)
+function MSHUB:_buildTabCategories(tab)
+    -- Clear previous category frames in self.Body
+    for _, child in ipairs(self.Body:GetChildren()) do
+        if child:IsA("Frame") and child.Name:sub(1,9) == "Category_" then
+            child:Destroy()
         end
+    end
+    -- For each category, create its frame and controls
+    for _, cat in ipairs(tab.Categories) do
+        self:_buildCategoryFrame(tab, cat)
+    end
+end
+
+function MSHUB:_buildCategoryFrame(tab, category)
+    local selfRef = self
+    if category.Frame then return category.Frame end -- already built
+
+    category.Frame = create("Frame", {
+        Parent = self.Body,
+        Name = "Category_"..category.Name,
+        Size = UDim2.new(1, -24, 0, 0),
+        BackgroundColor3 = self.Theme.Background,
+        BorderColor3 = self.Theme.Border,
+        BorderSizePixel = 1,
+        AutomaticSize = Enum.AutomaticSize.Y,
+        ClipsDescendants = true,
+        ZIndex = 2,
+    })
+    category.Title = create("TextLabel", {
+        Parent = category.Frame,
+        Size = UDim2.new(1, 0, 0, 24),
+        BackgroundTransparency = 1,
+        Text = category.Name,
+        Font = self.Font,
+        TextSize = 20,
+        TextColor3 = self.Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Position = UDim2.new(0, 8, 0, 0),
+    })
+    category.Body = create("Frame", {
+        Parent = category.Frame,
+        Size = UDim2.new(1, -8, 1, -24),
+        Position = UDim2.new(0, 8, 0, 24),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Name = "ControlsBody",
+        AutomaticSize = Enum.AutomaticSize.Y,
+        ClipsDescendants = true,
+    })
+    category.BodyLayout = create("UIListLayout", {
+        Parent = category.Body,
+        Padding = UDim.new(0, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
+    -- Controls API
+    function category:AddToggle(name, default, callback)
+        local state = default and true or false
+        local btn = create("TextButton", {
+            Parent = category.Body,
+            Size = UDim2.new(1, 0, 0, 32),
+            BackgroundColor3 = selfRef.Theme.Background,
+            BorderColor3 = selfRef.Theme.Border,
+            BorderSizePixel = 1,
+            Text = (state and "■" or "□").." "..name,
+            Font = selfRef.Font,
+            TextSize = 16,
+            TextColor3 = selfRef.Theme.Text,
+            AutoButtonColor = true,
+            Name = "Toggle_" .. name:gsub("%s+", "_"),
+        })
+        btn.MouseButton1Click:Connect(function()
+            state = not state
+            btn.Text = (state and "■" or "□").." "..name
+            if callback then callback(state) end
+        end)
+        table.insert(category.Controls, btn)
+        return btn
+    end
+
+    function category:AddSlider(name, min, max, default, callback)
+        local value = default or min
+        local sliderFrame = create("Frame", {
+            Parent = category.Body,
+            Size = UDim2.new(1, 0, 0, 38),
+            BackgroundTransparency = 1,
+            Name = "Slider_" .. name:gsub("%s+", "_"),
+        })
+        local label = create("TextLabel", {
+            Parent = sliderFrame,
+            Size = UDim2.new(0.4, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = name..": "..tostring(value),
+            Font = selfRef.Font,
+            TextSize = 16,
+            TextColor3 = selfRef.Theme.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        })
+        local sliderBar = create("Frame", {
+            Parent = sliderFrame,
+            Size = UDim2.new(0.55, -12, 0, 14),
+            Position = UDim2.new(0.45, 6, 0.5, -7),
+            BackgroundColor3 = selfRef.Theme.Border,
+            BorderColor3 = selfRef.Theme.Accent,
+            BorderSizePixel = 2,
+            Name = "SliderBar",
+            ClipsDescendants = true,
+        })
+        local fill = create("Frame", {
+            Parent = sliderBar,
+            Size = UDim2.new((value-min)/(max-min), 0, 1, 0),
+            BackgroundColor3 = selfRef.Theme.Accent,
+            BorderSizePixel = 0,
+            Name = "Fill",
+        })
+        local dragging = false
+
+        local function updateSlider(input)
+            local rel = (input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X
+            rel = math.clamp(rel, 0, 1)
+            value = math.floor((min + rel * (max - min)) + 0.5)
+            fill.Size = UDim2.new(rel, 0, 1, 0)
+            label.Text = name..": "..tostring(value)
+            if callback then callback(value) end
+        end
+
+        sliderBar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                updateSlider(input)
+            end
+        end)
+        sliderBar.InputEnded:Connect(function(input)
+            dragging = false
+        end)
+        sliderBar.InputChanged:Connect(function(input)
+            if dragging then updateSlider(input) end
+        end)
+        table.insert(category.Controls, sliderFrame)
+        return sliderFrame
+    end
+
+    function category:AddDropdown(name, options, default, callback)
+        local expanded = false
+        local selected = default or options[1]
+        local dropdownFrame = create("Frame", {
+            Parent = category.Body,
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundTransparency = 1,
+            Name = "Dropdown_" .. name:gsub("%s+", "_"),
+        })
+        local button = create("TextButton", {
+            Parent = dropdownFrame,
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = selfRef.Theme.Background,
+            BorderColor3 = selfRef.Theme.Border,
+            BorderSizePixel = 1,
+            Text = "["..name.." +]",
+            Font = selfRef.Font,
+            TextSize = 16,
+            TextColor3 = selfRef.Theme.Text,
+            AutoButtonColor = true,
+        })
+        local listFrame = create("Frame", {
+            Parent = dropdownFrame,
+            Size = UDim2.new(1, 0, 0, #options*28),
+            Position = UDim2.new(0, 0, 1, 0),
+            BackgroundColor3 = selfRef.Theme.Background,
+            BorderColor3 = selfRef.Theme.Border,
+            BorderSizePixel = 1,
+            Visible = false,
+            ZIndex = 2,
+            Name = "DropdownList"
+        })
+        local layout = create("UIListLayout", {
+            Parent = listFrame,
+            Padding = UDim.new(0, 0)
+        })
+        for _, opt in ipairs(options) do
+            local optBtn = create("TextButton", {
+                Parent = listFrame,
+                Size = UDim2.new(1, 0, 0, 28),
+                BackgroundTransparency = 1,
+                Text = opt,
+                Font = selfRef.Font,
+                TextSize = 15,
+                TextColor3 = selfRef.Theme.Text,
+                AutoButtonColor = true,
+            })
+            optBtn.MouseButton1Click:Connect(function()
+                selected = opt
+                button.Text = "["..name.." +]"
+                listFrame.Visible = false
+                expanded = false
+                if callback then callback(opt) end
+            end)
+        end
+        button.MouseButton1Click:Connect(function()
+            expanded = not expanded
+            button.Text = "["..name.." "..(expanded and "–" or "+").."]"
+            listFrame.Visible = expanded
+        end)
+        table.insert(category.Controls, dropdownFrame)
+        return dropdownFrame
+    end
+
+    function category:AddDropdownToggle(name, options, default, callback)
+        local expanded = false
+        local selected = default or {}
+        local dropdownFrame = create("Frame", {
+            Parent = category.Body,
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundTransparency = 1,
+            Name = "DropdownToggle_" .. name:gsub("%s+", "_"),
+        })
+        local button = create("TextButton", {
+            Parent = dropdownFrame,
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = selfRef.Theme.Background,
+            BorderColor3 = selfRef.Theme.Border,
+            BorderSizePixel = 1,
+            Text = "["..name.." +]",
+            Font = selfRef.Font,
+            TextSize = 16,
+            TextColor3 = selfRef.Theme.Text,
+            AutoButtonColor = true,
+        })
+        local listFrame = create("Frame", {
+            Parent = dropdownFrame,
+            Size = UDim2.new(1, 0, 0, #options*28),
+            Position = UDim2.new(0, 0, 1, 0),
+            BackgroundColor3 = selfRef.Theme.Background,
+            BorderColor3 = selfRef.Theme.Border,
+            BorderSizePixel = 1,
+            Visible = false,
+            ZIndex = 2,
+            Name = "DropdownList"
+        })
+        local layout = create("UIListLayout", {
+            Parent = listFrame,
+            Padding = UDim.new(0, 0)
+        })
+        for _, opt in ipairs(options) do
+            local state = false
+            local optBtn = create("TextButton", {
+                Parent = listFrame,
+                Size = UDim2.new(1, 0, 0, 28),
+                BackgroundTransparency = 1,
+                Text = "□ "..opt,
+                Font = selfRef.Font,
+                TextSize = 15,
+                TextColor3 = selfRef.Theme.Text,
+                AutoButtonColor = true,
+            })
+            optBtn.MouseButton1Click:Connect(function()
+                state = not state
+                optBtn.Text = (state and "■ " or "□ ")..opt
+                selected[opt] = state
+                if callback then callback(selected) end
+            end)
+        end
+        button.MouseButton1Click:Connect(function()
+            expanded = not expanded
+            button.Text = "["..name.." "..(expanded and "–" or "+").."]"
+            listFrame.Visible = expanded
+        end)
+        table.insert(category.Controls, dropdownFrame)
+        return dropdownFrame
+    end
+
+    function category:AddLabel(text)
+        local label = create("TextLabel", {
+            Parent = category.Body,
+            Size = UDim2.new(1, 0, 0, 20),
+            BackgroundTransparency = 1,
+            Text = text,
+            Font = selfRef.Font,
+            TextSize = 15,
+            TextColor3 = selfRef.Theme.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Name = "Label_" .. text:gsub("%s+", "_"),
+        })
+        table.insert(category.Controls, label)
+        return label
+    end
+
+    function category:AddButton(name, callback)
+        local btn = create("TextButton", {
+            Parent = category.Body,
+            Size = UDim2.new(1, 0, 0, 32),
+            BackgroundColor3 = selfRef.Theme.Background,
+            BorderColor3 = selfRef.Theme.Border,
+            BorderSizePixel = 1,
+            Text = name,
+            Font = selfRef.Font,
+            TextSize = 16,
+            TextColor3 = selfRef.Theme.Text,
+            AutoButtonColor = true,
+            Name = "Button_" .. name:gsub("%s+", "_"),
+        })
+        btn.MouseButton1Click:Connect(callback)
+        table.insert(category.Controls, btn)
+        return btn
+    end
+
+    function category:AddColorPicker(name, default, callback)
+        local colors = {
+            ["White"] = Color3.fromRGB(255,255,255),
+            ["Black"] = Color3.fromRGB(0,0,0),
+            ["Red"] = Color3.fromRGB(255,0,0),
+            ["Green"] = Color3.fromRGB(0,255,0),
+            ["Blue"] = Color3.fromRGB(0,0,255),
+            ["Accent"] = selfRef.Theme.Accent,
+        }
+        local picker = category:AddDropdown(name, {"White","Black","Red","Green","Blue","Accent"}, "Accent", function(selected)
+            if callback then callback(colors[selected] or selfRef.Theme.Text) end
+        end)
+        picker.Name = "ColorPicker_" .. name:gsub("%s+", "_")
+        return picker
+    end
+
+    -- Build controls immediately if buildFunc exists
+    if category._buildFunc then
+        category._buildFunc(category)
+        category._buildFunc = nil
+    end
+
+    return category.Frame
+end
+
+function MSHUB:ShowTab(tab)
+    self.CurrentTab = tab
+    -- Hide all tab buttons, show selected one
+    for _, t in ipairs(self.Tabs) do
         if t.TabButton then
             t.TabButton.BackgroundColor3 = self.Theme.Background
             t.TabButton.TextColor3 = self.Theme.Text
         end
     end
-    if tab.Body then
-        tab.Body.Visible = true
-    end
     if tab.TabButton then
         tab.TabButton.BackgroundColor3 = self.Theme.Accent
         tab.TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     end
+    -- Build and show all categories for this tab
+    self:_buildTabCategories(tab)
+    -- Set Body.CanvasPosition to 0 (reset scroll)
+    self.Body.CanvasPosition = Vector2.new(0, 0)
 end
 
 function MSHUB:setOpen(bool)
@@ -882,9 +866,9 @@ function MSHUB:RefreshTheme()
 
     for _, tab in ipairs(self.Tabs) do
         if tab.TabButton then
-            tab.TabButton.BackgroundColor3 = (tab.Body and tab.Body.Visible and self.Theme.Accent) or self.Theme.Background
+            tab.TabButton.BackgroundColor3 = (tab == self.CurrentTab and self.Theme.Accent) or self.Theme.Background
             tab.TabButton.BorderColor3 = self.Theme.Border
-            tab.TabButton.TextColor3 = (tab.Body and tab.Body.Visible and Color3.fromRGB(255, 255, 255)) or self.Theme.Text
+            tab.TabButton.TextColor3 = (tab == self.CurrentTab and Color3.fromRGB(255, 255, 255)) or self.Theme.Text
             tab.TabButton.Font = self.Theme.Font
         end
 
