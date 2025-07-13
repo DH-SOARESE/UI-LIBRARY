@@ -4,7 +4,7 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = game:GetService("Players").LocalPlayer
 local HttpService = game:GetService("HttpService")
 
-local OrionLib = {
+local GhostLib = {
 	Elements = {},
 	ThemeObjects = {},
 	Connections = {},
@@ -21,7 +21,9 @@ local OrionLib = {
 	},
 	SelectedTheme = "Default",
 	Folder = nil,
-	SaveCfg = false
+	SaveCfg = false,
+	IsActive = false, -- Flag to check if the library is currently active
+	ResetFunctions = {}, -- Table to store functions that need to be reset
 }
 
 -- Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
@@ -32,8 +34,8 @@ local Success, Response = pcall(function()
 end)
 
 if not Success then
-	warn("\nOrion Library - Failed to load Feather Icons. Error code: " .. Response .. "\n")
-end	
+	warn("\nGhost Library - Falha ao carregar Feather Icons. Código de erro: " .. Response .. "\n")
+end
 
 local function GetIcon(IconName)
 	if Icons[IconName] ~= nil then
@@ -41,57 +43,56 @@ local function GetIcon(IconName)
 	else
 		return nil
 	end
-end   
+end
 
-local Orion = Instance.new("ScreenGui")
-Orion.Name = "Orion"
+local GhostScreenGui = Instance.new("ScreenGui")
+GhostScreenGui.Name = "GhostLibraryUI" -- Nome único para evitar conflitos
 if syn then
-	syn.protect_gui(Orion)
-	Orion.Parent = game.CoreGui
+	syn.protect_gui(GhostScreenGui)
+	GhostScreenGui.Parent = game.CoreGui
 else
-	Orion.Parent = gethui() or game.CoreGui
+	GhostScreenGui.Parent = gethui() or game.CoreGui
 end
 
-if gethui then
-	for _, Interface in ipairs(gethui():GetChildren()) do
-		if Interface.Name == Orion.Name and Interface ~= Orion then
-			Interface:Destroy()
-		end
-	end
-else
-	for _, Interface in ipairs(game.CoreGui:GetChildren()) do
-		if Interface.Name == Orion.Name and Interface ~= Orion then
-			Interface:Destroy()
-		end
+-- Destrói instâncias anteriores da mesma UI para evitar duplicação
+for _, Interface in ipairs(GhostScreenGui.Parent:GetChildren()) do
+	if Interface.Name == GhostScreenGui.Name and Interface ~= GhostScreenGui then
+		Interface:Destroy()
 	end
 end
 
-function OrionLib:IsRunning()
-	if gethui then
-		return Orion.Parent == gethui()
-	else
-		return Orion.Parent == game:GetService("CoreGui")
-	end
-
+function GhostLib:IsRunning()
+	return GhostScreenGui.Parent ~= nil and GhostScreenGui.Parent:FindFirstChild(GhostScreenGui.Name) == GhostScreenGui
 end
 
 local function AddConnection(Signal, Function)
-	if (not OrionLib:IsRunning()) then
+	if not GhostLib:IsRunning() then
 		return
 	end
 	local SignalConnect = Signal:Connect(Function)
-	table.insert(OrionLib.Connections, SignalConnect)
+	table.insert(GhostLib.Connections, SignalConnect)
 	return SignalConnect
 end
 
+local function AddResetFunction(func)
+	table.insert(GhostLib.ResetFunctions, func)
+end
+
+-- Desconecta todas as conexões e reseta as funções quando a UI é destruída
 task.spawn(function()
-	while (OrionLib:IsRunning()) do
-		wait()
+	while GhostLib:IsRunning() do
+		task.wait()
 	end
 
-	for _, Connection in next, OrionLib.Connections do
+	for _, Connection in next, GhostLib.Connections do
 		Connection:Disconnect()
 	end
+	GhostLib.Connections = {} -- Limpa as conexões
+
+	for _, ResetFunc in next, GhostLib.ResetFunctions do
+		pcall(ResetFunc) -- Executa cada função de reset
+	end
+	GhostLib.ResetFunctions = {} -- Limpa as funções de reset
 end)
 
 local function AddDraggingFunctionality(DragPoint, Main)
@@ -104,6 +105,9 @@ local function AddDraggingFunctionality(DragPoint, Main)
 				Dragging = true
 				InitialMousePos = input.Position
 				InitialFramePos = Main.Position
+
+				-- Desconecta input.Changed anterior se existir
+				if CurrentInputConnection then CurrentInputConnection:Disconnect() end
 
 				CurrentInputConnection = input.Changed:Connect(function()
 					if input.UserInputState == Enum.UserInputState.End then
@@ -122,11 +126,10 @@ local function AddDraggingFunctionality(DragPoint, Main)
 			end
 		end
 
-		-- Connect for both Mouse and Touch
 		AddConnection(DragPoint.InputBegan, onInputBegan)
-		AddConnection(UserInputService.InputChanged, onInputChanged) -- Listen globally for input changes while dragging
+		AddConnection(UserInputService.InputChanged, onInputChanged)
 	end)
-end   
+end
 
 local function Create(Name, Properties, Children)
 	local Object = Instance.new(Name)
@@ -140,13 +143,13 @@ local function Create(Name, Properties, Children)
 end
 
 local function CreateElement(ElementName, ElementFunction)
-	OrionLib.Elements[ElementName] = function(...)
+	GhostLib.Elements[ElementName] = function(...)
 		return ElementFunction(...)
 	end
 end
 
 local function MakeElement(ElementName, ...)
-	local NewElement = OrionLib.Elements[ElementName](...)
+	local NewElement = GhostLib.Elements[ElementName](...)
 	return NewElement
 end
 
@@ -173,41 +176,41 @@ end
 local function ReturnProperty(Object)
 	if Object:IsA("Frame") or Object:IsA("TextButton") then
 		return "BackgroundColor3"
-	end 
+	end
 	if Object:IsA("ScrollingFrame") then
 		return "ScrollBarImageColor3"
-	end 
+	end
 	if Object:IsA("UIStroke") then
 		return "Color"
-	end 
+	end
 	if Object:IsA("TextLabel") or Object:IsA("TextBox") then
 		return "TextColor3"
-	end   
+	end
 	if Object:IsA("ImageLabel") or Object:IsA("ImageButton") then
 		return "ImageColor3"
-	end   
+	end
 end
 
 local function AddThemeObject(Object, Type)
-	if not OrionLib.ThemeObjects[Type] then
-		OrionLib.ThemeObjects[Type] = {}
-	end    
-	table.insert(OrionLib.ThemeObjects[Type], Object)
-	Object[ReturnProperty(Object)] = OrionLib.Themes[OrionLib.SelectedTheme][Type]
+	if not GhostLib.ThemeObjects[Type] then
+		GhostLib.ThemeObjects[Type] = {}
+	end
+	table.insert(GhostLib.ThemeObjects[Type], Object)
+	Object[ReturnProperty(Object)] = GhostLib.Themes[GhostLib.SelectedTheme][Type]
 	return Object
-end    
+end
 
 local function SetTheme()
-	for Name, Type in pairs(OrionLib.ThemeObjects) do
+	for Name, Type in pairs(GhostLib.ThemeObjects) do
 		for _, Object in pairs(Type) do
-			Object[ReturnProperty(Object)] = OrionLib.Themes[OrionLib.SelectedTheme][Name]
-		end    
-	end    
+			Object[ReturnProperty(Object)] = GhostLib.Themes[GhostLib.SelectedTheme][Name]
+		end
+	end
 end
 
 local function PackColor(Color)
 	return {R = Color.R * 255, G = Color.G * 255, B = Color.B * 255}
-end    
+end
 
 local function UnpackColor(Color)
 	return Color3.fromRGB(Color.R, Color.G, Color.B)
@@ -216,32 +219,32 @@ end
 local function LoadCfg(Config)
 	local Data = HttpService:JSONDecode(Config)
 	table.foreach(Data, function(a,b)
-		if OrionLib.Flags[a] then
-			spawn(function() 
-				if OrionLib.Flags[a].Type == "Colorpicker" then
-					OrionLib.Flags[a]:Set(UnpackColor(b))
+		if GhostLib.Flags[a] then
+			task.spawn(function()
+				if GhostLib.Flags[a].Type == "Colorpicker" then
+					GhostLib.Flags[a]:Set(UnpackColor(b))
 				else
-					OrionLib.Flags[a]:Set(b)
-				end    
+					GhostLib.Flags[a]:Set(b)
+				end
 			end)
 		else
-			warn("Orion Library Config Loader - Could not find ", a ,b)
+			warn("Ghost Library Config Loader - Não foi possível encontrar ", a ,b)
 		end
 	end)
 end
 
 local function SaveCfg(Name)
 	local Data = {}
-	for i,v in pairs(OrionLib.Flags) do
+	for i,v in pairs(GhostLib.Flags) do
 		if v.Save then
 			if v.Type == "Colorpicker" then
 				Data[i] = PackColor(v.Value)
 			else
 				Data[i] = v.Value
 			end
-		end	
+		end
 	end
-	writefile(OrionLib.Folder .. "/" .. Name .. ".txt", tostring(HttpService:JSONEncode(Data)))
+	writefile(GhostLib.Folder .. "/" .. Name .. ".txt", tostring(HttpService:JSONEncode(Data)))
 end
 
 local WhitelistedInputTypes = {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3, Enum.UserInputType.Touch}
@@ -347,7 +350,7 @@ CreateElement("Image", function(ImageID)
 
 	if GetIcon(ImageID) ~= nil then
 		ImageNew.Image = GetIcon(ImageID)
-	end	
+	end
 
 	return ImageNew
 end)
@@ -385,13 +388,13 @@ local NotificationHolder = SetProps(SetChildren(MakeElement("TFrame"), {
 	Position = UDim2.new(1, -25, 1, -25),
 	Size = UDim2.new(0, 300, 1, -25),
 	AnchorPoint = Vector2.new(1, 1),
-	Parent = Orion
+	Parent = GhostScreenGui
 })
 
-function OrionLib:MakeNotification(NotificationConfig)
-	spawn(function()
-		NotificationConfig.Name = NotificationConfig.Name or "Notification"
-		NotificationConfig.Content = NotificationConfig.Content or "Test"
+function GhostLib:MakeNotification(NotificationConfig)
+	task.spawn(function()
+		NotificationConfig.Name = NotificationConfig.Name or "Notificação"
+		NotificationConfig.Content = NotificationConfig.Content or "Teste"
 		NotificationConfig.Image = NotificationConfig.Image or "rbxassetid://4384403532"
 		NotificationConfig.Time = NotificationConfig.Time or 15
 
@@ -402,7 +405,7 @@ function OrionLib:MakeNotification(NotificationConfig)
 		})
 
 		local NotificationFrame = SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(25, 25, 25), 0, 10), {
-			Parent = NotificationParent, 
+			Parent = NotificationParent,
 			Size = UDim2.new(1, 0, 0, 0),
 			Position = UDim2.new(1, -55, 0, 0),
 			BackgroundTransparency = 0,
@@ -434,61 +437,68 @@ function OrionLib:MakeNotification(NotificationConfig)
 
 		TweenService:Create(NotificationFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Position = UDim2.new(0, 0, 0, 0)}):Play()
 
-		wait(NotificationConfig.Time - 0.88)
+		task.wait(NotificationConfig.Time - 0.88)
 		TweenService:Create(NotificationFrame.Icon, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play()
 		TweenService:Create(NotificationFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quint), {BackgroundTransparency = 0.6}):Play()
-		wait(0.3)
+		task.wait(0.3)
 		TweenService:Create(NotificationFrame.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {Transparency = 0.9}):Play()
 		TweenService:Create(NotificationFrame.Title, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {TextTransparency = 0.4}):Play()
 		TweenService:Create(NotificationFrame.Content, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {TextTransparency = 0.5}):Play()
-		wait(0.05)
+		task.wait(0.05)
 
 		NotificationFrame:TweenPosition(UDim2.new(1, 20, 0, 0),'In','Quint',0.8,true)
-		wait(1.35)
+		task.wait(1.35)
 		NotificationFrame:Destroy()
 	end)
-end    
+end
 
-function OrionLib:Init()
-	if OrionLib.SaveCfg then	
+function GhostLib:Init()
+	if GhostLib.SaveCfg then
 		pcall(function()
-			if isfile(OrionLib.Folder .. "/" .. game.GameId .. ".txt") then
-				LoadCfg(readfile(OrionLib.Folder .. "/" .. game.GameId .. ".txt"))
-				OrionLib:MakeNotification({
-					Name = "Configuration",
-					Content = "Auto-loaded configuration for the game " .. game.GameId .. ".",
+			if isfile(GhostLib.Folder .. "/" .. game.GameId .. ".txt") then
+				LoadCfg(readfile(GhostLib.Folder .. "/" .. game.GameId .. ".txt"))
+				GhostLib:MakeNotification({
+					Name = "Configuração",
+					Content = "Configuração auto-carregada para o jogo " .. game.GameId .. ".",
 					Time = 5
 				})
 			end
-		end)		
-	end	
-end	
+		end)
+	end
+	GhostLib.IsActive = true -- Marca a biblioteca como ativa
+end
 
-function OrionLib:MakeWindow(WindowConfig)
+function GhostLib:MakeWindow(WindowConfig)
+	-- Se uma instância anterior já estiver ativa, destrua-a para resetar as funções
+	if GhostLib.IsActive then
+		GhostLib:Destroy()
+		GhostLib.IsActive = false -- Garante que a flag seja resetada
+	end
+
 	local FirstTab = true
 	local Minimized = false
 	local UIHidden = false
 
 	WindowConfig = WindowConfig or {}
-	WindowConfig.Name = WindowConfig.Name or "Orion Library"
+	WindowConfig.Name = WindowConfig.Name or "Ghost Library"
 	WindowConfig.ConfigFolder = WindowConfig.ConfigFolder or WindowConfig.Name
 	WindowConfig.SaveConfig = WindowConfig.SaveConfig or false
 	WindowConfig.HidePremium = WindowConfig.HidePremium or false
 	if WindowConfig.IntroEnabled == nil then
 		WindowConfig.IntroEnabled = true
 	end
-	WindowConfig.IntroText = WindowConfig.IntroText or "Orion Library"
+	WindowConfig.IntroText = WindowConfig.IntroText or "Ghost Library"
 	WindowConfig.CloseCallback = WindowConfig.CloseCallback or function() end
 	WindowConfig.ShowIcon = WindowConfig.ShowIcon or false
 	WindowConfig.Icon = WindowConfig.Icon or "rbxassetid://8834748103"
 	WindowConfig.IntroIcon = WindowConfig.IntroIcon or "rbxassetid://8834748103"
-	OrionLib.Folder = WindowConfig.ConfigFolder
-	OrionLib.SaveCfg = WindowConfig.SaveConfig
+	GhostLib.Folder = WindowConfig.ConfigFolder
+	GhostLib.SaveCfg = WindowConfig.SaveConfig
 
 	if WindowConfig.SaveConfig then
 		if not isfolder(WindowConfig.ConfigFolder) then
 			makefolder(WindowConfig.ConfigFolder)
-		end	
+		end
 	end
 
 	local TabHolder = AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255), 4), {
@@ -535,15 +545,15 @@ function OrionLib:MakeWindow(WindowConfig)
 		AddThemeObject(SetProps(MakeElement("Frame"), {
 			Size = UDim2.new(1, 0, 0, 10),
 			Position = UDim2.new(0, 0, 0, 0)
-		}), "Second"), 
+		}), "Second"),
 		AddThemeObject(SetProps(MakeElement("Frame"), {
 			Size = UDim2.new(0, 10, 1, 0),
 			Position = UDim2.new(1, -10, 0, 0)
-		}), "Second"), 
+		}), "Second"),
 		AddThemeObject(SetProps(MakeElement("Frame"), {
 			Size = UDim2.new(0, 1, 1, 0),
 			Position = UDim2.new(1, -1, 0, 0)
-		}), "Stroke"), 
+		}), "Stroke"),
 		TabHolder,
 		SetChildren(SetProps(MakeElement("TFrame"), {
 			Size = UDim2.new(1, 0, 0, 50),
@@ -551,7 +561,7 @@ function OrionLib:MakeWindow(WindowConfig)
 		}), {
 			AddThemeObject(SetProps(MakeElement("Frame"), {
 				Size = UDim2.new(1, 0, 0, 1)
-			}), "Stroke"), 
+			}), "Stroke"),
 			AddThemeObject(SetChildren(SetProps(MakeElement("Frame"), {
 				AnchorPoint = Vector2.new(0, 0.5),
 				Size = UDim2.new(0, 32, 0, 32),
@@ -600,18 +610,11 @@ function OrionLib:MakeWindow(WindowConfig)
 	}), "Stroke")
 
 	local MainWindow = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 10), {
-		Parent = Orion,
+		Parent = GhostScreenGui,
 		Position = UDim2.new(0.5, -307, 0.5, -172),
 		Size = UDim2.new(0, 615, 0, 344),
 		ClipsDescendants = true
 	}), {
-		--SetProps(MakeElement("Image", "rbxassetid://3523728077"), {
-		--	AnchorPoint = Vector2.new(0.5, 0.5),
-		--	Position = UDim2.new(0.5, 0, 0.5, 0),
-		--	Size = UDim2.new(1, 80, 1, 320),
-		--	ImageColor3 = Color3.fromRGB(33, 33, 33),
-		--	ImageTransparency = 0.7
-		--}),
 		SetChildren(SetProps(MakeElement("TFrame"), {
 			Size = UDim2.new(1, 0, 0, 50),
 			Name = "TopBar"
@@ -626,10 +629,10 @@ function OrionLib:MakeWindow(WindowConfig)
 				AddThemeObject(SetProps(MakeElement("Frame"), {
 					Size = UDim2.new(0, 1, 1, 0),
 					Position = UDim2.new(0.5, 0, 0, 0)
-				}), "Stroke"), 
+				}), "Stroke"),
 				CloseBtn,
 				MinimizeBtn
-			}), "Second"), 
+			}), "Second"),
 		}),
 		DragPoint,
 		WindowStuff
@@ -642,18 +645,17 @@ function OrionLib:MakeWindow(WindowConfig)
 			Position = UDim2.new(0, 25, 0, 15)
 		})
 		WindowIcon.Parent = MainWindow.TopBar
-	end	
+	end
 
 	AddDraggingFunctionality(DragPoint, MainWindow)
 
-	-- Change MouseButton1Up to InputEnded for touch support
 	AddConnection(CloseBtn.InputEnded, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			MainWindow.Visible = false
 			UIHidden = true
-			OrionLib:MakeNotification({
-				Name = "Interface Hidden",
-				Content = "Tap RightShift to reopen the interface",
+			GhostLib:MakeNotification({
+				Name = "Interface Oculta",
+				Content = "Pressione RightShift para reabrir a interface",
 				Time = 5
 			})
 			WindowConfig.CloseCallback()
@@ -663,16 +665,16 @@ function OrionLib:MakeWindow(WindowConfig)
 	AddConnection(UserInputService.InputBegan, function(Input)
 		if Input.KeyCode == Enum.KeyCode.RightShift and UIHidden then
 			MainWindow.Visible = true
+			UIHidden = false
 		end
 	end)
 
-	-- Change MouseButton1Up to InputEnded for touch support
 	AddConnection(MinimizeBtn.InputEnded, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			if Minimized then
 				TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 615, 0, 344)}):Play()
 				MinimizeBtn.Ico.Image = "rbxassetid://7072719338"
-				wait(.02)
+				task.wait(.02)
 				MainWindow.ClipsDescendants = false
 				WindowStuff.Visible = true
 				WindowTopBarLine.Visible = true
@@ -682,17 +684,21 @@ function OrionLib:MakeWindow(WindowConfig)
 				MinimizeBtn.Ico.Image = "rbxassetid://7072720870"
 
 				TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, WindowName.TextBounds.X + 140, 0, 50)}):Play()
-				wait(0.1)
-				WindowStuff.Visible = false	
+				task.wait(0.1)
+				WindowStuff.Visible = true
+				WindowStuff.Size = UDim2.new(0,150,0,0)
+				WindowStuff.Position = UDim2.new(0,0,0,50)
+				task.wait(0.1)
+				WindowStuff.Visible = false -- Oculta após a transição
 			end
-			Minimized = not Minimized    
+			Minimized = not Minimized
 		end
 	end)
 
 	local function LoadSequence()
 		MainWindow.Visible = false
 		local LoadSequenceLogo = SetProps(MakeElement("Image", WindowConfig.IntroIcon), {
-			Parent = Orion,
+			Parent = GhostScreenGui,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(0.5, 0, 0.4, 0),
 			Size = UDim2.new(0, 28, 0, 28),
@@ -701,7 +707,7 @@ function OrionLib:MakeWindow(WindowConfig)
 		})
 
 		local LoadSequenceText = SetProps(MakeElement("Label", WindowConfig.IntroText, 14), {
-			Parent = Orion,
+			Parent = GhostScreenGui,
 			Size = UDim2.new(1, 0, 1, 0),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(0.5, 19, 0.5, 0),
@@ -711,20 +717,20 @@ function OrionLib:MakeWindow(WindowConfig)
 		})
 
 		TweenService:Create(LoadSequenceLogo, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 0, Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
-		wait(0.8)
+		task.wait(0.8)
 		TweenService:Create(LoadSequenceLogo, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -(LoadSequenceText.TextBounds.X/2), 0.5, 0)}):Play()
-		wait(0.3)
+		task.wait(0.3)
 		TweenService:Create(LoadSequenceText, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-		wait(2)
+		task.wait(2)
 		TweenService:Create(LoadSequenceText, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1}):Play()
 		MainWindow.Visible = true
 		LoadSequenceLogo:Destroy()
 		LoadSequenceText:Destroy()
-	end 
+	end
 
 	if WindowConfig.IntroEnabled then
 		LoadSequence()
-	end	
+	end
 
 	local TabFunction = {}
 	function TabFunction:MakeTab(TabConfig)
@@ -755,7 +761,7 @@ function OrionLib:MakeWindow(WindowConfig)
 
 		if GetIcon(TabConfig.Icon) ~= nil then
 			TabFrame.Ico.Image = GetIcon(TabConfig.Icon)
-		end	
+		end
 
 		local Container = AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255), 5), {
 			Size = UDim2.new(1, -150, 1, -50),
@@ -778,9 +784,8 @@ function OrionLib:MakeWindow(WindowConfig)
 			TabFrame.Title.TextTransparency = 0
 			TabFrame.Title.Font = Enum.Font.GothamBlack
 			Container.Visible = true
-		end    
+		end
 
-		-- Change MouseButton1Click to InputEnded for touch support
 		AddConnection(TabFrame.InputEnded, function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				for _, Tab in next, TabHolder:GetChildren() do
@@ -788,17 +793,17 @@ function OrionLib:MakeWindow(WindowConfig)
 						Tab.Title.Font = Enum.Font.GothamSemibold
 						TweenService:Create(Tab.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0.4}):Play()
 						TweenService:Create(Tab.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
-					end    
+					end
 				end
 				for _, ItemContainer in next, MainWindow:GetChildren() do
 					if ItemContainer.Name == "ItemContainer" then
 						ItemContainer.Visible = false
-					end    
-				end  
+					end
+				end
 				TweenService:Create(TabFrame.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0}):Play()
 				TweenService:Create(TabFrame.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
 				TabFrame.Title.Font = Enum.Font.GothamBlack
-				Container.Visible = true   
+				Container.Visible = true
 			end
 		end)
 
@@ -862,10 +867,10 @@ function OrionLib:MakeWindow(WindowConfig)
 					ParagraphFrame.Content.Text = ToChange
 				end
 				return ParagraphFunction
-			end    
+			end
 			function ElementFunction:AddButton(ButtonConfig)
 				ButtonConfig = ButtonConfig or {}
-				ButtonConfig.Name = ButtonConfig.Name or "Button"
+				ButtonConfig.Name = ButtonConfig.Name or "Botão"
 				ButtonConfig.Callback = ButtonConfig.Callback or function() end
 				ButtonConfig.Icon = ButtonConfig.Icon or "rbxassetid://3944703587"
 
@@ -893,37 +898,35 @@ function OrionLib:MakeWindow(WindowConfig)
 					Click
 				}), "Second")
 
-				-- Handle both mouse and touch input
 				AddConnection(Click.InputBegan, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
+						TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 6, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 6, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 6)}):Play()
 					end
 				end)
 
 				AddConnection(Click.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
-						spawn(function()
+						TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+						task.spawn(function()
 							ButtonConfig.Callback()
 						end)
 					end
 				end)
-				
-				-- For mouse hover effect
+
 				AddConnection(Click.MouseEnter, function()
-					TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+					TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 3)}):Play()
 				end)
 
 				AddConnection(Click.MouseLeave, function()
-					TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
+					TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = GhostLib.Themes[GhostLib.SelectedTheme].Second}):Play()
 				end)
 
 				function Button:Set(ButtonText)
 					ButtonFrame.Content.Text = ButtonText
-				end	
+				end
 
 				return Button
-			end    
+			end
 			function ElementFunction:AddToggle(ToggleConfig)
 				ToggleConfig = ToggleConfig or {}
 				ToggleConfig.Name = ToggleConfig.Name or "Toggle"
@@ -975,43 +978,41 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				function Toggle:Set(Value)
 					Toggle.Value = Value
-					TweenService:Create(ToggleBox, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Toggle.Value and ToggleConfig.Color or OrionLib.Themes.Default.Divider}):Play()
-					TweenService:Create(ToggleBox.Stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Color = Toggle.Value and ToggleConfig.Color or OrionLib.Themes.Default.Stroke}):Play()
+					TweenService:Create(ToggleBox, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Toggle.Value and ToggleConfig.Color or GhostLib.Themes.Default.Divider}):Play()
+					TweenService:Create(ToggleBox.Stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Color = Toggle.Value and ToggleConfig.Color or GhostLib.Themes.Default.Stroke}):Play()
 					TweenService:Create(ToggleBox.Ico, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = Toggle.Value and 0 or 1, Size = Toggle.Value and UDim2.new(0, 20, 0, 20) or UDim2.new(0, 8, 0, 8)}):Play()
 					ToggleConfig.Callback(Toggle.Value)
-				end    
+				end
 
 				Toggle:Set(Toggle.Value)
 
-				-- Handle both mouse and touch input
 				AddConnection(Click.InputBegan, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
+						TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 6, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 6, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 6)}):Play()
 					end
 				end)
 
 				AddConnection(Click.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+						TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 3)}):Play()
 						SaveCfg(game.GameId)
 						Toggle:Set(not Toggle.Value)
 					end
 				end)
 
-				-- For mouse hover effect
 				AddConnection(Click.MouseEnter, function()
-					TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+					TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 3)}):Play()
 				end)
 
 				AddConnection(Click.MouseLeave, function()
-					TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
+					TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = GhostLib.Themes[GhostLib.SelectedTheme].Second}):Play()
 				end)
 
 				if ToggleConfig.Flag then
-					OrionLib.Flags[ToggleConfig.Flag] = Toggle
-				end	
+					GhostLib.Flags[ToggleConfig.Flag] = Toggle
+				end
 				return Toggle
-			end  
+			end
 			function ElementFunction:AddSlider(SliderConfig)
 				SliderConfig = SliderConfig or {}
 				SliderConfig.Name = SliderConfig.Name or "Slider"
@@ -1034,7 +1035,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					BackgroundTransparency = 0.3,
 					ClipsDescendants = true
 				}), {
-					AddThemeObject(SetProps(MakeElement("Label", "value", 13), {
+					AddThemeObject(SetProps(MakeElement("Label", "valor", 13), {
 						Size = UDim2.new(1, -12, 0, 14),
 						Position = UDim2.new(0, 12, 0, 6),
 						Font = Enum.Font.GothamBold,
@@ -1051,7 +1052,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					SetProps(MakeElement("Stroke"), {
 						Color = SliderConfig.Color
 					}),
-					AddThemeObject(SetProps(MakeElement("Label", "value", 13), {
+					AddThemeObject(SetProps(MakeElement("Label", "valor", 13), {
 						Size = UDim2.new(1, -12, 0, 14),
 						Position = UDim2.new(0, 12, 0, 6),
 						Font = Enum.Font.GothamBold,
@@ -1076,23 +1077,23 @@ function OrionLib:MakeWindow(WindowConfig)
 				}), "Second")
 
 				AddConnection(SliderBar.InputBegan, function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then 
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						Dragging = true
 						CurrentInputObject = input
-					end 
+					end
 				end)
 
-				AddConnection(UserInputService.InputEnded, function(input) 
-					if input == CurrentInputObject and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then 
-						Dragging = false 
+				AddConnection(UserInputService.InputEnded, function(input)
+					if input == CurrentInputObject and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+						Dragging = false
 						CurrentInputObject = nil
-					end 
+					end
 				end)
 
 				AddConnection(UserInputService.InputChanged, function(input)
-					if Dragging and input == CurrentInputObject and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then 
+					if Dragging and input == CurrentInputObject and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 						local SizeScale = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
-						Slider:Set(SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * SizeScale)) 
+						Slider:Set(SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * SizeScale))
 						SaveCfg(game.GameId)
 					end
 				end)
@@ -1103,14 +1104,14 @@ function OrionLib:MakeWindow(WindowConfig)
 					SliderBar.Value.Text = tostring(self.Value) .. " " .. SliderConfig.ValueName
 					SliderDrag.Value.Text = tostring(self.Value) .. " " .. SliderConfig.ValueName
 					SliderConfig.Callback(self.Value)
-				end      
+				end
 
 				Slider:Set(Slider.Value)
-				if SliderConfig.Flag then				
-					OrionLib.Flags[SliderConfig.Flag] = Slider
+				if SliderConfig.Flag then
+					GhostLib.Flags[SliderConfig.Flag] = Slider
 				end
 				return Slider
-			end  
+			end
 			function ElementFunction:AddDropdown(DropdownConfig)
 				DropdownConfig = DropdownConfig or {}
 				DropdownConfig.Name = DropdownConfig.Name or "Dropdown"
@@ -1162,7 +1163,7 @@ function OrionLib:MakeWindow(WindowConfig)
 							ImageColor3 = Color3.fromRGB(240, 240, 240),
 							Name = "Ico"
 						}), "TextDark"),
-						AddThemeObject(SetProps(MakeElement("Label", "Selected", 13), {
+						AddThemeObject(SetProps(MakeElement("Label", "Selecionado", 13), {
 							Size = UDim2.new(1, -40, 1, 0),
 							Font = Enum.Font.Gotham,
 							Name = "Selected",
@@ -1173,7 +1174,7 @@ function OrionLib:MakeWindow(WindowConfig)
 							Position = UDim2.new(0, 0, 1, -1),
 							Name = "Line",
 							Visible = false
-						}), "Stroke"), 
+						}), "Stroke"),
 						Click
 					}), {
 						Size = UDim2.new(1, 0, 0, 38),
@@ -1186,7 +1187,7 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
 					DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
-				end)  
+				end)
 
 				local function AddOptions(Options)
 					for _, Option in pairs(Options) do
@@ -1204,7 +1205,6 @@ function OrionLib:MakeWindow(WindowConfig)
 							ClipsDescendants = true
 						}), "Divider")
 
-						-- Change MouseButton1Click to InputEnded for touch support
 						AddConnection(OptionBtn.InputEnded, function(input)
 							if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 								Dropdown:Set(Option)
@@ -1214,19 +1214,19 @@ function OrionLib:MakeWindow(WindowConfig)
 
 						Dropdown.Buttons[Option] = OptionBtn
 					end
-				end	
+				end
 
 				function Dropdown:Refresh(Options, Delete)
 					if Delete then
 						for _,v in pairs(Dropdown.Buttons) do
 							v:Destroy()
-						end    
+						end
 						table.clear(Dropdown.Options)
 						table.clear(Dropdown.Buttons)
 					end
 					Dropdown.Options = Options
 					AddOptions(Dropdown.Options)
-				end  
+				end
 
 				function Dropdown:Set(Value)
 					if not table.find(Dropdown.Options, Value) then
@@ -1235,7 +1235,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						for _, v in pairs(Dropdown.Buttons) do
 							TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
 							TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
-						end	
+						end
 						return
 					end
 
@@ -1245,13 +1245,12 @@ function OrionLib:MakeWindow(WindowConfig)
 					for _, v in pairs(Dropdown.Buttons) do
 						TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
 						TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
-					end	
+					end
 					TweenService:Create(Dropdown.Buttons[Value],TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 0}):Play()
 					TweenService:Create(Dropdown.Buttons[Value].Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0}):Play()
 					return DropdownConfig.Callback(Dropdown.Value)
 				end
 
-				-- Change MouseButton1Click to InputEnded for touch support
 				AddConnection(Click.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						Dropdown.Toggled = not Dropdown.Toggled
@@ -1267,8 +1266,8 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				Dropdown:Refresh(Dropdown.Options, false)
 				Dropdown:Set(Dropdown.Value)
-				if DropdownConfig.Flag then				
-					OrionLib.Flags[DropdownConfig.Flag] = Dropdown
+				if DropdownConfig.Flag then
+					GhostLib.Flags[DropdownConfig.Flag] = Dropdown
 				end
 				return Dropdown
 			end
@@ -1321,18 +1320,16 @@ function OrionLib:MakeWindow(WindowConfig)
 				end)
 
 				AddConnection(Click.InputEnded, function(Input)
-					-- Check for both mouse click and touch tap
 					if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
 						if Bind.Binding then return end
 						Bind.Binding = true
-						BindBox.Value.Text = "..." -- Indicate waiting for input
+						BindBox.Value.Text = "..."
 					end
 				end)
 
 				AddConnection(UserInputService.InputBegan, function(Input)
 					if UserInputService:GetFocusedTextBox() then return end
 					if not Bind.Binding then
-						-- Handle normal bind activation
 						if (Input.KeyCode.Name == Bind.Value or (Input.UserInputType.Name == Bind.Value and CheckKey(WhitelistedInputTypes, Input.UserInputType))) then
 							if BindConfig.Hold then
 								Holding = true
@@ -1350,14 +1347,13 @@ function OrionLib:MakeWindow(WindowConfig)
 						elseif CheckKey(WhitelistedInputTypes, Input.UserInputType) then
 							Key = Input.UserInputType
 						end
-						Key = Key or BindConfig.Default -- Fallback to default if no valid input
+						Key = Key or BindConfig.Default
 						Bind:Set(Key)
 						SaveCfg(game.GameId)
 					end
 				end)
 
 				AddConnection(UserInputService.InputEnded, function(Input)
-					-- Handle release for hold binds
 					if (Input.KeyCode.Name == Bind.Value or (Input.UserInputType.Name == Bind.Value and CheckKey(WhitelistedInputTypes, Input.UserInputType))) then
 						if BindConfig.Hold and Holding then
 							Holding = false
@@ -1366,18 +1362,17 @@ function OrionLib:MakeWindow(WindowConfig)
 					end
 				end)
 
-				-- Mouse hover effects (keep for mouse users)
 				AddConnection(Click.MouseEnter, function()
-					TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+					TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 3)}):Play()
 				end)
 
 				AddConnection(Click.MouseLeave, function()
-					TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
+					TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = GhostLib.Themes[GhostLib.SelectedTheme].Second}):Play()
 				end)
 
 				AddConnection(Click.InputBegan, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
+						TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 6, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 6, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 6)}):Play()
 					end
 				end)
 
@@ -1392,11 +1387,11 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 
 				Bind:Set(BindConfig.Default)
-				if BindConfig.Flag then				
-					OrionLib.Flags[BindConfig.Flag] = Bind
+				if BindConfig.Flag then
+					GhostLib.Flags[BindConfig.Flag] = Bind
 				end
 				return Bind
-			end  
+			end
 			function ElementFunction:AddTextbox(TextboxConfig)
 				TextboxConfig = TextboxConfig or {}
 				TextboxConfig.Name = TextboxConfig.Name or "Textbox"
@@ -1453,34 +1448,32 @@ function OrionLib:MakeWindow(WindowConfig)
 					TextboxConfig.Callback(TextboxActual.Text)
 					if TextboxConfig.TextDisappear then
 						TextboxActual.Text = ""
-					end	
+					end
 				end)
 
 				TextboxActual.Text = TextboxConfig.Default
 
-				-- Mouse hover effects (keep for mouse users)
 				AddConnection(Click.MouseEnter, function()
-					TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+					TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 3)}):Play()
 				end)
 
 				AddConnection(Click.MouseLeave, function()
-					TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
+					TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = GhostLib.Themes[GhostLib.SelectedTheme].Second}):Play()
 				end)
 
-				-- Handle both mouse click and touch tap
 				AddConnection(Click.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+						TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 3, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 3)}):Play()
 						TextboxActual:CaptureFocus()
 					end
 				end)
 
 				AddConnection(Click.InputBegan, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
+						TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(GhostLib.Themes[GhostLib.SelectedTheme].Second.R * 255 + 6, GhostLib.Themes[GhostLib.SelectedTheme].Second.G * 255 + 6, GhostLib.Themes[GhostLib.SelectedTheme].Second.B * 255 + 6)}):Play()
 					end
 				end)
-			end 
+			end
 			function ElementFunction:AddColorpicker(ColorpickerConfig)
 				ColorpickerConfig = ColorpickerConfig or {}
 				ColorpickerConfig.Name = ColorpickerConfig.Name or "Colorpicker"
@@ -1491,7 +1484,7 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				local ColorH, ColorS, ColorV = 1, 1, 1
 				local Colorpicker = {Value = ColorpickerConfig.Default, Toggled = false, Type = "Colorpicker", Save = ColorpickerConfig.Save}
-				local ColorInputConnection, HueInputConnection -- Keep track of these connections
+				local ColorInputConnection, HueInputConnection
 
 				local ColorSelection = Create("ImageLabel", {
 					Size = UDim2.new(0, 18, 0, 18),
@@ -1576,7 +1569,7 @@ function OrionLib:MakeWindow(WindowConfig)
 							Position = UDim2.new(0, 0, 1, -1),
 							Name = "Line",
 							Visible = false
-						}), "Stroke"), 
+						}), "Stroke"),
 					}), {
 						Size = UDim2.new(1, 0, 0, 38),
 						ClipsDescendants = true,
@@ -1586,7 +1579,6 @@ function OrionLib:MakeWindow(WindowConfig)
 					AddThemeObject(MakeElement("Stroke"), "Stroke"),
 				}), "Second")
 
-				-- Change MouseButton1Click to InputEnded for touch support
 				AddConnection(Click.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						Colorpicker.Toggled = not Colorpicker.Toggled
@@ -1610,7 +1602,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						HueSelection.Position = UDim2.new(0.5, 0, clampedY / targetFrame.AbsoluteSize.Y, 0)
 						ColorH = 1 - (clampedY / targetFrame.AbsoluteSize.Y)
 					end
-					
+
 					ColorpickerBox.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)
 					Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
 					Colorpicker:Set(ColorpickerBox.BackgroundColor3)
@@ -1631,7 +1623,6 @@ function OrionLib:MakeWindow(WindowConfig)
 								if connectionRef then connectionRef:Disconnect() end
 							end
 						end)
-						-- Initial update
 						UpdateColorPicker(inputObject.Position, targetFrame)
 					end
 				end
@@ -1647,29 +1638,29 @@ function OrionLib:MakeWindow(WindowConfig)
 				function Colorpicker:Set(Value)
 					Colorpicker.Value = Value
 					ColorH, ColorS, ColorV = Color3.toHSV(Colorpicker.Value)
-					
+
 					ColorpickerBox.BackgroundColor3 = Colorpicker.Value
 					Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
-					
+
 					ColorSelection.Position = UDim2.new(ColorS, 0, 1 - ColorV, 0)
 					HueSelection.Position = UDim2.new(0.5, 0, 1 - ColorH, 0)
-					
+
 					ColorpickerConfig.Callback(Colorpicker.Value)
 				end
 
-				Colorpicker:Set(Colorpicker.Value) -- Set initial color and update UI elements
-				if ColorpickerConfig.Flag then				
-					OrionLib.Flags[ColorpickerConfig.Flag] = Colorpicker
+				Colorpicker:Set(Colorpicker.Value)
+				if ColorpickerConfig.Flag then
+					GhostLib.Flags[ColorpickerConfig.Flag] = Colorpicker
 				end
 				return Colorpicker
-			end  
-			return ElementFunction   
-		end	
+			end
+			return ElementFunction
+		end
 
 		local ElementFunction = {}
 
 		function ElementFunction:AddSection(SectionConfig)
-			SectionConfig.Name = SectionConfig.Name or "Section"
+			SectionConfig.Name = SectionConfig.Name or "Seção"
 
 			local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
 				Size = UDim2.new(1, 0, 0, 26),
@@ -1697,19 +1688,19 @@ function OrionLib:MakeWindow(WindowConfig)
 
 			local SectionFunction = {}
 			for i, v in next, GetElements(SectionFrame.Holder) do
-				SectionFunction[i] = v 
+				SectionFunction[i] = v
 			end
 			return SectionFunction
-		end	
+		end
 
 		for i, v in next, GetElements(Container) do
-			ElementFunction[i] = v 
+			ElementFunction[i] = v
 		end
 
 		if TabConfig.PremiumOnly then
 			for i, v in next, ElementFunction do
 				ElementFunction[i] = function() end
-			end    
+			end
 			Container:FindFirstChild("UIListLayout"):Destroy()
 			Container:FindFirstChild("UIPadding"):Destroy()
 			SetChildren(SetProps(MakeElement("TFrame"), {
@@ -1721,7 +1712,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					Position = UDim2.new(0, 15, 0, 15),
 					ImageTransparency = 0.4
 				}), "Text"),
-				AddThemeObject(SetProps(MakeElement("Label", "Unauthorised Access", 14), {
+				AddThemeObject(SetProps(MakeElement("Label", "Acesso Não Autorizado", 14), {
 					Size = UDim2.new(1, -38, 0, 14),
 					Position = UDim2.new(0, 38, 0, 18),
 					TextTransparency = 0.4
@@ -1730,12 +1721,12 @@ function OrionLib:MakeWindow(WindowConfig)
 					Size = UDim2.new(0, 56, 0, 56),
 					Position = UDim2.new(0, 84, 0, 110),
 				}), "Text"),
-				AddThemeObject(SetProps(MakeElement("Label", "Premium Features", 14), {
+				AddThemeObject(SetProps(MakeElement("Label", "Recursos Premium", 14), {
 					Size = UDim2.new(1, -150, 0, 14),
 					Position = UDim2.new(0, 150, 0, 112),
 					Font = Enum.Font.GothamBold
 				}), "Text"),
-				AddThemeObject(SetProps(MakeElement("Label", "This part of the script is locked to Sirius Premium users. Purchase Premium in the Discord server (discord.gg/sirius)", 12), {
+				AddThemeObject(SetProps(MakeElement("Label", "Esta parte do script está bloqueada para usuários Sirius Premium. Adquira Premium no servidor do Discord (discord.gg/sirius)", 12), {
 					Size = UDim2.new(1, -200, 0, 14),
 					Position = UDim2.new(0, 150, 0, 138),
 					TextWrapped = true,
@@ -1743,22 +1734,37 @@ function OrionLib:MakeWindow(WindowConfig)
 				}), "Text")
 			})
 		end
-		return ElementFunction   
-	end  
-	
-	OrionLib:MakeNotification({
-		Name = "UI Library Upgrade",
-		Content = "New UI Library Available at sirius.menu/discord and sirius.menu/rayfield",
+		return ElementFunction
+	end
+
+	GhostLib:MakeNotification({
+		Name = "Atualização da Biblioteca de UI",
+		Content = "Nova Biblioteca de UI disponível em sirius.menu/discord e sirius.menu/rayfield",
 		Time = 5
 	})
-	
 
-	
+	GhostLib.IsActive = true -- Marca a biblioteca como ativa após a criação da janela
 	return TabFunction
-end   
-
-function OrionLib:Destroy()
-	Orion:Destroy()
 end
 
-return OrionLib
+function GhostLib:Destroy()
+	-- Disconecta todas as conexões ativas
+	for _, Connection in next, GhostLib.Connections do
+		Connection:Disconnect()
+	end
+	GhostLib.Connections = {} -- Limpa a tabela de conexões
+
+	-- Executa todas as funções de reset
+	for _, ResetFunc in next, GhostLib.ResetFunctions do
+		pcall(ResetFunc)
+	end
+	GhostLib.ResetFunctions = {} -- Limpa a tabela de funções de reset
+
+	-- Destrói a ScreenGui principal
+	if GhostScreenGui then
+		GhostScreenGui:Destroy()
+	end
+	GhostLib.IsActive = false -- Marca a biblioteca como inativa
+end
+
+return GhostLib
