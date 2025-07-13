@@ -1,752 +1,676 @@
 --[[
-MSHUB-Inspired UI Library for Roblox (DOORS-ready, Mobile Compatible)
-
-Author: DH-SOARESE
-License: MIT
-Repo: https://github.com/<your-repo>/<your-library>
-
-Usage:
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/<your-repo>/<your-library>/main/lua_ui_library.lua"))()
-
-Features:
-- Modern, square, minimal UI
-- Tabs, categories, and features (Toggle, Slider, Dropdown, etc.)
-- Always-accessible Config tab
-- Preset management, theme/font adjustments
-- Lock/Unlock & Show/Hide menu controls (now external!)
-- 100% Mobile-friendly (touch, drag, tap, click)
+    MSHUB-Style UI Library for Roblox DOORS
+    Author: DH-SOARESE
+    Description:
+        A modern, mobile-friendly Lua UI library inspired by MSHUB for Roblox DOORS.
+        Features a square, clean aesthetic with robust customization and responsive controls.
+        https://github.com/your-github-repo (replace with your repo link)
 ]]
 
-local TweenService = game:GetService("TweenService")
+local MSHUB = {}
+MSHUB.__index = MSHUB
+
+-- ROBLOX SERVICES
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
-local HttpService = game:GetService("HttpService")
-local StarterGui = game:GetService("StarterGui")
+local LOCAL_PLAYER = Players.LocalPlayer
 
-local LIBRARY_VERSION = "1.0.0"
-
+-- THEME DEFAULTS
 local DEFAULT_THEME = {
-    Background        = Color3.fromRGB(24,24,28),
-    TabBar            = Color3.fromRGB(32,32,36),
-    TabActive         = Color3.fromRGB(48, 98, 255),
-    TabInactive       = Color3.fromRGB(40,40,44),
-    Category          = Color3.fromRGB(30,30,32),
-    CategoryBorder    = Color3.fromRGB(60,60,70),
-    Element           = Color3.fromRGB(45,45,52),
-    ElementBorder     = Color3.fromRGB(66,66,76),
-    Text              = Color3.fromRGB(240,240,247),
-    TextInactive      = Color3.fromRGB(160,160,168),
-    ToggleOn          = Color3.fromRGB(48, 98, 255),
-    ToggleOff         = Color3.fromRGB(60,60,72),
-    SliderBar         = Color3.fromRGB(38,72,180),
-    SliderBG          = Color3.fromRGB(44,44,55),
-    DropdownBG        = Color3.fromRGB(38,44,55),
-    DropdownBorder    = Color3.fromRGB(60,60,70),
-    ButtonHighlight   = Color3.fromRGB(48,98,255),
-    LockOn            = Color3.fromRGB(255,40,40),
-    LockOff           = Color3.fromRGB(40,255,60),
+    Background = Color3.fromRGB(25, 25, 35),
+    Border = Color3.fromRGB(50, 50, 65),
+    Accent = Color3.fromRGB(120, 200, 255),
+    Text = Color3.fromRGB(230, 230, 240),
+    Font = Enum.Font.Gotham,
 }
 
-local DEFAULT_FONT = Enum.Font.Gotham
+local THEMES = {
+    ["Dark"] = DEFAULT_THEME,
+    ["Light"] = {
+        Background = Color3.fromRGB(235, 235, 245),
+        Border = Color3.fromRGB(200, 200, 215),
+        Accent = Color3.fromRGB(0, 120, 255),
+        Text = Color3.fromRGB(25, 25, 35),
+        Font = Enum.Font.Gotham,
+    },
+    -- Add more custom themes as needed
+}
 
-local Library = {}
-Library.__index = Library
-
--- Utility: Responsive sizing
-local function isMobile()
-    return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-end
-
-local function round(num, bracket)
-    bracket = bracket or 1
-    return math.floor(num/bracket + 0.5) * bracket
-end
-
-local function deepCopy(tbl)
-    if type(tbl) ~= "table" then return tbl end
-    local t = {}
-    for k,v in pairs(tbl) do
-        t[k] = type(v) == "table" and deepCopy(v) or v
-    end
-    return t
-end
-
-local function saveToLocal(key, tbl)
-    pcall(function()
-        if writefile then
-            writefile(key..".json", HttpService:JSONEncode(tbl))
+-- UTILITIES
+local function create(class, props)
+    local obj = Instance.new(class)
+    for k, v in pairs(props) do
+        if type(k) == "number" then
+            v.Parent = obj
+        else
+            obj[k] = v
         end
-    end)
-end
-
-local function loadFromLocal(key)
-    pcall(function()
-        if isfile and isfile(key..".json") then
-            local dat = readfile(key..".json")
-            return HttpService:JSONDecode(dat)
-        end
-    end)
-    return nil
-end
-
--- UI OBJECTS
-local function create(objType, props)
-    local obj = Instance.new(objType)
-    for k, v in pairs(props or {}) do
-        obj[k] = v
     end
     return obj
 end
 
--- MAIN UI LIBRARY CONSTRUCTOR
-function Library.new(opts)
-    opts = opts or {}
-    local self = setmetatable({}, Library)
-    self.theme = deepCopy(DEFAULT_THEME)
-    self.font = opts.Font or DEFAULT_FONT
-    self.fontColor = self.theme.Text
-    self.title = opts.Title or "MSHUB UI"
-    self.tabs = {}
-    self.tabOrder = {}
-    self.selectedTab = nil
-    self.presets = {}
-    self.config = {}
-    self.locked = false
-    self.menuVisible = true
-    self.mobile = isMobile()
-    self.gui = nil
-    self:build()
+local function deepCopy(tbl)
+    if type(tbl) ~= "table" then return tbl end
+    local copy = {}
+    for k, v in pairs(tbl) do
+        copy[k] = deepCopy(v)
+    end
+    return copy
+end
+
+-- MAIN UI CONSTRUCTOR
+function MSHUB.new(config)
+    config = config or {}
+    local self = setmetatable({}, MSHUB)
+    self.Theme = deepCopy(THEMES[config.Theme or "Dark"])
+    self.Font = self.Theme.Font
+    self.Title = config.Title or "MSHUB UI"
+    self.Tabs = {}
+    self.Categories = {}
+    self.Open = false
+    self.Dragging = false
+    self.Locked = true
+    self.Mobile = UserInputService.TouchEnabled
+    self.LastSettings = {}
+
+    self:_buildUI()
+    self:_buildMenuToggle()
+    self:_buildLockToggle()
+    self:_buildConfigTab()
+
+    -- Show menu on startup if desired
+    self:setOpen(true)
+
     return self
 end
 
--- TOP-LEVEL UI BUILD
-function Library:build()
-    if self.gui then self.gui:Destroy() end
-
-    -- Destroy any other instance
-    if game.CoreGui:FindFirstChild("MSHUB_UI") then
-        game.CoreGui.MSHUB_UI:Destroy()
-    end
-
-    local gui = create("ScreenGui", {
+-- UI BUILDER METHODS
+function MSHUB:_buildUI()
+    -- Main container (ScreenGui)
+    self.ScreenGui = create("ScreenGui", {
         Name = "MSHUB_UI",
         ResetOnSpawn = false,
         Parent = game:GetService("CoreGui"),
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     })
-    self.gui = gui
 
-    -- Main Frame
-    local frame = create("Frame", {
-        Name = "MainFrame",
-        BackgroundColor3 = self.theme.Background,
-        BorderSizePixel = 0,
-        Size = self.mobile and UDim2.new(0, 340, 0, 480) or UDim2.new(0, 420, 0, 540),
-        Position = UDim2.new(0.5, -210, 0.5, -270),
+    -- Top-level Frame (Menu)
+    self.Menu = create("Frame", {
+        Name = "Menu",
+        Parent = self.ScreenGui,
+        Size = UDim2.new(0, 500, 0, 400),
+        Position = UDim2.new(0.5, -250, 0.5, -200),
+        BackgroundColor3 = self.Theme.Background,
+        BorderColor3 = self.Theme.Border,
+        BorderSizePixel = 2,
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Visible = true,
-        Parent = gui
-    })
-    self.mainFrame = frame
-
-    -- Draggable
-    self:_makeDraggable(frame)
-
-    -- External Menu Toggle & Lock
-    self:_buildExternalMenuToggle(gui)
-    self:_buildExternalLockToggle(gui)
-
-    -- Tabs Bar
-    local tabBar = create("Frame", {
-        Name = "TabBar",
-        Size = UDim2.new(1, 0, 0, 44),
-        Position = UDim2.new(0, 0, 0, 0),
-        BackgroundColor3 = self.theme.TabBar,
-        BorderSizePixel = 0,
-        Parent = frame
-    })
-    self.tabBar = tabBar
-
-    -- Tab Buttons (dynamic)
-    self.tabBtnHolder = create("Frame", {
-        Name = "TabBtnHolder",
-        Size = UDim2.new(1,0,1,0),
-        BackgroundTransparency = 1,
-        Parent = tabBar
-    })
-
-    -- Tabs Content Holder
-    self.tabContentHolder = create("Frame", {
-        Name = "TabContentHolder",
-        Size = UDim2.new(1, -0, 1, -44),
-        Position = UDim2.new(0, 0, 0, 44),
-        BackgroundTransparency = 1,
-        Parent = frame
-    })
-
-    -- Tabs ListLayout
-    local tabList = create("UIListLayout", {
-        FillDirection = Enum.FillDirection.Horizontal,
-        Padding = UDim.new(0, 8),
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Parent = self.tabBtnHolder
-    })
-
-    -- Register default Config tab (always last)
-    self:addTab("Configuração", true)
-
-    -- Hide/Show hotkey: [RightShift]
-    self:_bindHotkey()
-end
-
--- DRAGGABLE
-function Library:_makeDraggable(frame)
-    local dragToggle, dragInput, dragStart, startPos
-    frame.Active = true
-
-    local function update(input)
-        if not self.locked then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(
-                frame.Position.X.Scale, frame.Position.X.Offset + delta.X,
-                frame.Position.Y.Scale, frame.Position.Y.Offset + delta.Y
-            )
-        end
-    end
-
-    frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or (self.mobile and input.UserInputType == Enum.UserInputType.Touch) then
-            dragToggle = true
-            dragStart = input.Position
-            startPos = frame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragToggle = false end
-            end)
-        end
-    end)
-    frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or (self.mobile and input.UserInputType == Enum.UserInputType.Touch) then
-            dragInput = input
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragToggle then
-            update(input)
-        end
-    end)
-end
-
--- EXTERNAL MENU TOGGLE BUTTON (Show/Hide)
-function Library:_buildExternalMenuToggle(gui)
-    local btn = create("TextButton", {
-        Name = "MenuToggleExternal",
-        Size = UDim2.new(0, 36, 0, 36),
-        Position = UDim2.new(0, 10, 0, 10), -- Top-left of screen
-        BackgroundColor3 = self.theme.Element,
-        BorderColor3 = self.theme.ElementBorder,
-        BorderSizePixel = 1,
-        Text = self.menuVisible and "H" or "S", -- H for Hide, S for Show
-        Font = self.font,
-        TextColor3 = self.theme.Text,
-        TextSize = 24,
-        ZIndex = 5, -- Ensure it's always on top
-        Parent = gui
-    })
-    btn.MouseButton1Click:Connect(function()
-        self.menuVisible = not self.menuVisible
-        self.mainFrame.Visible = self.menuVisible
-        btn.Text = self.menuVisible and "H" or "S"
-    end)
-    self.menuToggleButton = btn -- Store reference for hotkey update
-end
-
--- EXTERNAL LOCK/UNLOCK BUTTON
-function Library:_buildExternalLockToggle(gui)
-    local btn = create("TextButton", {
-        Name = "LockToggleExternal",
-        Size = UDim2.new(0, 36, 0, 36),
-        Position = UDim2.new(0, 10, 0, 50), -- Below the menu toggle
-        BackgroundColor3 = self.theme.Element,
-        BorderColor3 = self.theme.ElementBorder,
-        BorderSizePixel = 1,
-        Text = self.locked and "🔒" or "🔓",
-        Font = self.font,
-        TextColor3 = self.locked and self.theme.LockOn or self.theme.LockOff,
-        TextSize = 22,
-        ZIndex = 5, -- Ensure it's always on top
-        Parent = gui
-    })
-    btn.MouseButton1Click:Connect(function()
-        self.locked = not self.locked
-        btn.Text = self.locked and "🔒" or "🔓"
-        btn.TextColor3 = self.locked and self.theme.LockOn or self.theme.LockOff
-    end)
-    self.lockToggleButton = btn -- Store reference for hotkey update
-end
-
-
--- TABS
-function Library:addTab(name, isConfig)
-    isConfig = isConfig or false
-    if self.tabs[name] then return self.tabs[name] end
-
-    -- Tab content frame
-    local tabContent = create("Frame", {
-        Name = "Tab_"..name,
         Visible = false,
+    })
+
+    -- Menu Title
+    self.TitleLabel = create("TextLabel", {
+        Parent = self.Menu,
+        Size = UDim2.new(1, 0, 0, 38),
         BackgroundTransparency = 1,
-        Size = UDim2.new(1,0,1,0),
-        Parent = self.tabContentHolder
-    })
-
-    -- Tab button
-    local tabBtn = create("TextButton", {
-        Name = "TabBtn_"..name,
-        Text = name,
-        Font = self.font,
-        TextSize = 18,
-        TextColor3 = self.theme.TextInactive,
-        BackgroundColor3 = isConfig and self.theme.TabActive or self.theme.TabInactive,
-        BorderSizePixel = 0,
-        Size = UDim2.new(0, 92, 1, 0),
-        LayoutOrder = isConfig and 999 or (#self.tabOrder+1),
-        Parent = self.tabBtnHolder
-    })
-
-    -- Tab select
-    tabBtn.MouseButton1Click:Connect(function()
-        self:selectTab(name)
-    end)
-
-    -- Record
-    self.tabs[name] = {frame = tabContent, btn = tabBtn, categories = {}, isConfig = isConfig}
-    if not isConfig then
-        table.insert(self.tabOrder, name)
-    end
-
-    -- Config tab always at end
-    if isConfig then
-        tabBtn.LayoutOrder = 999
-    end
-
-    -- First tab auto-select
-    if not self.selectedTab or isConfig then
-        self:selectTab(name)
-    end
-
-    return self.tabs[name]
-end
-
-function Library:selectTab(name)
-    for tabName, tab in pairs(self.tabs) do
-        tab.frame.Visible = (tabName == name)
-        tab.btn.BackgroundColor3 = tab.isConfig and self.theme.TabActive or (tabName == name and self.theme.TabActive or self.theme.TabInactive)
-        tab.btn.TextColor3 = tabName == name and self.theme.Text or self.theme.TextInactive
-    end
-    self.selectedTab = name
-end
-
--- CATEGORY
-function Library:addCategory(tabName, catName)
-    assert(self.tabs[tabName], "Tab does not exist: "..tabName)
-    local tab = self.tabs[tabName]
-
-    local cat = create("Frame", {
-        Name = "Category_"..catName,
-        Size = UDim2.new(1, -16, 0, 88),
-        BackgroundColor3 = self.theme.Category,
-        BorderColor3 = self.theme.CategoryBorder,
-        BorderSizePixel = 1,
-        Position = UDim2.new(0,8,0, #tab.categories*96 + 12),
-        Parent = tab.frame
-    })
-    local catTitle = create("TextLabel", {
-        Name = "CatTitle",
-        Text = catName,
-        Font = self.font,
-        TextSize = 16,
-        TextColor3 = self.theme.Text,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, -12, 0, 22),
-        Position = UDim2.new(0, 6, 0, 4),
-        Parent = cat
-    })
-    tab.categories[catName] = cat
-    return cat
-end
-
--- FEATURE CONTROLS
-function Library:addToggle(tabName, catName, params)
-    local cat = self.tabs[tabName].categories[catName]
-    local toggle = create("TextButton", {
-        Name = "Toggle_"..params.Name,
-        Size = UDim2.new(0, 108, 0, 38),
-        Position = UDim2.new(0, 8 + ((#cat:GetChildren()-1)*116), 0, 30),
-        BackgroundColor3 = self.theme.Element,
-        BorderColor3 = self.theme.ElementBorder,
-        BorderSizePixel = 1,
-        Text = params.Default and "■ "..params.Name or "□ "..params.Name,
-        Font = self.font,
-        TextColor3 = params.Default and self.theme.ToggleOn or self.theme.ToggleOff,
-        TextSize = 16,
-        Parent = cat
-    })
-    local state = params.Default or false
-    toggle.MouseButton1Click:Connect(function()
-        state = not state
-        toggle.Text = state and "■ "..params.Name or "□ "..params.Name
-        toggle.TextColor3 = state and self.theme.ToggleOn or self.theme.ToggleOff
-        if params.Callback then params.Callback(state) end
-    end)
-    return toggle
-end
-
-function Library:addSlider(tabName, catName, params)
-    local cat = self.tabs[tabName].categories[catName]
-    local sliderFrame = create("Frame", {
-        Name = "Slider_"..params.Name,
-        Size = UDim2.new(0, 148, 0, 38),
-        Position = UDim2.new(0, 8 + ((#cat:GetChildren()-1)*156), 0, 30),
-        BackgroundColor3 = self.theme.Element,
-        BorderColor3 = self.theme.ElementBorder,
-        BorderSizePixel = 1,
-        Parent = cat
-    })
-    local label = create("TextLabel", {
-        Name = "SliderLabel",
-        Text = params.Name,
-        Font = self.font,
-        TextSize = 15,
-        BackgroundTransparency = 1,
-        TextColor3 = self.theme.Text,
-        Size = UDim2.new(1, -46, 1, 0),
-        Position = UDim2.new(0,6,0,0),
-        Parent = sliderFrame
-    })
-    local sliderBar = create("Frame", {
-        Name = "SliderBarBG",
-        Size = UDim2.new(0, 60, 0, 6),
-        Position = UDim2.new(1, -66, 0.5, -3),
-        BackgroundColor3 = self.theme.SliderBG,
-        BorderSizePixel = 0,
-        Parent = sliderFrame
-    })
-    local sliderFill = create("Frame", {
-        Name = "SliderFill",
-        Size = UDim2.new(0, 0, 1, 0),
-        BackgroundColor3 = self.theme.SliderBar,
-        BorderSizePixel = 0,
-        Parent = sliderBar
-    })
-    local valueLabel = create("TextLabel", {
-        Name = "SliderValue",
-        Text = tostring(params.Default or params.Min or 0),
-        Font = self.font,
-        TextSize = 14,
-        BackgroundTransparency = 1,
-        TextColor3 = self.theme.Text,
-        Size = UDim2.new(0, 36, 1, 0),
-        Position = UDim2.new(1, 2, 0, 0),
-        Parent = sliderBar
-    })
-    local min, max = params.Min or 0, params.Max or 100
-    local value = params.Default or min
-    local function updateSlider(px)
-        local percent = math.clamp(px/60, 0, 1)
-        value = round((max-min)*percent + min)
-        sliderFill.Size = UDim2.new(percent,0,1,0)
-        valueLabel.Text = tostring(value)
-        if params.Callback then params.Callback(value) end
-    end
-    sliderBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or (self.mobile and input.UserInputType == Enum.UserInputType.Touch) then
-            updateSlider(input.Position.X - sliderBar.AbsolutePosition.X)
-            local conn
-            conn = UserInputService.InputChanged:Connect(function(move)
-                if move.UserInputType == Enum.UserInputType.MouseMovement or (self.mobile and move.UserInputType == Enum.UserInputType.Touch) then
-                    updateSlider(move.Position.X - sliderBar.AbsolutePosition.X)
-                end
-            end)
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    if conn then conn:Disconnect() end
-                end
-            end)
-        end
-    end)
-    -- Initial
-    updateSlider(((value-min)/(max-min))*60)
-    return sliderFrame
-end
-
-function Library:addDropdown(tabName, catName, params)
-    local cat = self.tabs[tabName].categories[catName]
-    local ddBtn = create("TextButton", {
-        Name = "Dropdown_"..params.Name,
-        Size = UDim2.new(0, 148, 0, 38),
-        Position = UDim2.new(0, 8 + ((#cat:GetChildren()-1)*156), 0, 30),
-        BackgroundColor3 = self.theme.Element,
-        BorderColor3 = self.theme.ElementBorder,
-        BorderSizePixel = 1,
-        Text = "[ "..params.Name.." + ]",
-        Font = self.font,
-        TextColor3 = self.theme.Text,
-        TextSize = 16,
-        Parent = cat
-    })
-    local ddOpen = false
-    local ddFrame
-    ddBtn.MouseButton1Click:Connect(function()
-        ddOpen = not ddOpen
-        ddBtn.Text = ddOpen and "[ "..params.Name.." – ]" or "[ "..params.Name.." + ]"
-        if not ddFrame then
-            ddFrame = create("Frame", {
-                Name = "DropdownList",
-                Size = UDim2.new(0, 148, 0, 32*#params.Options),
-                Position = UDim2.new(0, ddBtn.Position.X.Offset, 0, ddBtn.Position.Y.Offset+38),
-                BackgroundColor3 = self.theme.DropdownBG,
-                BorderColor3 = self.theme.DropdownBorder,
-                BorderSizePixel = 1,
-                Parent = cat
-            })
-            for i, option in ipairs(params.Options) do
-                local optBtn = create("TextButton", {
-                    Name = "Option_"..option,
-                    Size = UDim2.new(1,0,0,32),
-                    Position = UDim2.new(0,0,0,(i-1)*32),
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    Text = option,
-                    Font = self.font,
-                    TextColor3 = self.theme.Text,
-                    TextSize = 15,
-                    Parent = ddFrame
-                })
-                optBtn.MouseButton1Click:Connect(function()
-                    ddBtn.Text = "[ "..option.." + ]"
-                    if params.Callback then params.Callback(option) end
-                    ddOpen = false
-                    ddFrame:Destroy()
-                    ddFrame = nil
-                end)
-            end
-        elseif not ddOpen and ddFrame then
-            ddFrame:Destroy()
-            ddFrame = nil
-        end
-    end)
-    return ddBtn
-end
-
-function Library:addDropdownToggle(tabName, catName, params)
-    local cat = self.tabs[tabName].categories[catName]
-    local ddBtn = create("TextButton", {
-        Name = "DropdownToggle_"..params.Name,
-        Size = UDim2.new(0, 148, 0, 38),
-        Position = UDim2.new(0, 8 + ((#cat:GetChildren()-1)*156), 0, 30),
-        BackgroundColor3 = self.theme.Element,
-        BorderColor3 = self.theme.ElementBorder,
-        BorderSizePixel = 1,
-        Text = "[ "..params.Name.." + ]",
-        Font = self.font,
-        TextColor3 = self.theme.Text,
-        TextSize = 16,
-        Parent = cat
-    })
-    local ddOpen = false
-    local ddFrame
-    local selected = {}
-    ddBtn.MouseButton1Click:Connect(function()
-        ddOpen = not ddOpen
-        ddBtn.Text = ddOpen and "[ "..params.Name.." – ]" or "[ "..params.Name.." + ]"
-        if not ddFrame then
-            ddFrame = create("Frame", {
-                Name = "DropdownList",
-                Size = UDim2.new(0, 148, 0, 32*#params.Options),
-                Position = UDim2.new(0, ddBtn.Position.X.Offset, 0, ddBtn.Position.Y.Offset+38),
-                BackgroundColor3 = self.theme.DropdownBG,
-                BorderColor3 = self.theme.DropdownBorder,
-                BorderSizePixel = 1,
-                Parent = cat
-            })
-            for i, option in ipairs(params.Options) do
-                local optBtn = create("TextButton", {
-                    Name = "Option_"..option,
-                    Size = UDim2.new(1,0,0,32),
-                    Position = UDim2.new(0,0,0,(i-1)*32),
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    Text = "□ "..option,
-                    Font = self.font,
-                    TextColor3 = self.theme.Text,
-                    TextSize = 15,
-                    Parent = ddFrame
-                })
-                optBtn.MouseButton1Click:Connect(function()
-                    selected[option] = not selected[option]
-                    optBtn.Text = (selected[option] and "■ " or "□ ")..option
-                    if params.Callback then params.Callback(selected) end
-                end)
-            end
-            -- Clicking outside closes
-            local function closeDD()
-                if ddFrame then
-                    ddFrame:Destroy()
-                    ddFrame = nil
-                    ddOpen = false
-                    ddBtn.Text = "[ "..params.Name.." + ]"
-                end
-            end
-            -- Add an invisible overlay to detect clicks outside the dropdown
-            local overlay = create("Frame", {
-                Size = UDim2.new(1,0,1,0),
-                BackgroundTransparency = 1,
-                ZIndex = ddFrame.ZIndex - 1,
-                Parent = ddFrame.Parent.Parent.Parent -- Correct parent to cover the whole screen
-            })
-            overlay.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or (self.mobile and input.UserInputType == Enum.UserInputType.Touch) then
-                    local mousePos = input.Position
-                    local dropdownAbsolutePos = ddFrame.AbsolutePosition
-                    local dropdownAbsoluteSize = ddFrame.AbsoluteSize
-
-                    -- Check if click is outside dropdown
-                    if not (mousePos.X >= dropdownAbsolutePos.X and mousePos.X <= dropdownAbsolutePos.X + dropdownAbsoluteSize.X and
-                            mousePos.Y >= dropdownAbsolutePos.Y and mousePos.Y <= dropdownAbsolutePos.Y + dropdownAbsoluteSize.Y) then
-                        closeDD()
-                    end
-                end
-            end)
-            ddFrame.DescendantRemoving:Connect(function(child)
-                if child == ddFrame then
-                    overlay:Destroy() -- Clean up overlay when dropdown is destroyed
-                end
-            end)
-        elseif not ddOpen and ddFrame then
-            ddFrame:Destroy()
-            ddFrame = nil
-        end
-    end)
-    return ddBtn
-end
-
-function Library:addLabel(tabName, catName, params)
-    local cat = self.tabs[tabName].categories[catName]
-    local label = create("TextLabel", {
-        Name = "Label_"..params.Name,
-        Size = UDim2.new(1,-24,0,22),
-        Position = UDim2.new(0,8,0,30+((#cat:GetChildren()-1)*26)),
-        BackgroundTransparency = 1,
-        Text = params.Text or params.Name,
-        Font = self.font,
-        TextSize = 15,
+        Text = self.Title,
+        TextColor3 = self.Theme.Text,
+        Font = self.Theme.Font,
+        TextSize = 24,
         TextXAlignment = Enum.TextXAlignment.Left,
-        TextColor3 = self.theme.Text,
-        Parent = cat
+        Position = UDim2.new(0, 16, 0, 0),
     })
-    return label
+
+    -- Tab Bar
+    self.TabBar = create("Frame", {
+        Parent = self.Menu,
+        Name = "TabBar",
+        Position = UDim2.new(0, 0, 0, 38),
+        Size = UDim2.new(1, 0, 0, 36),
+        BackgroundTransparency = 1,
+    })
+
+    self.TabsList = create("UIListLayout", {
+        Parent = self.TabBar,
+        FillDirection = Enum.FillDirection.Horizontal,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 8),
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+    })
+
+    -- Body (where categories appear)
+    self.Body = create("Frame", {
+        Parent = self.Menu,
+        Name = "Body",
+        Position = UDim2.new(0, 0, 0, 74),
+        Size = UDim2.new(1, 0, 1, -74),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+    })
 end
 
--- CONFIG TAB SPECIAL
-function Library:_buildConfigTab()
-    local tab = self.tabs["Configuração"]
-    local cat = self:addCategory("Configuração","Ajustes")
+function MSHUB:_buildMenuToggle()
+    -- Square menu toggle button (left side)
+    self.MenuToggle = create("TextButton", {
+        Parent = self.ScreenGui,
+        Name = "MenuToggle",
+        Size = UDim2.new(0, 42, 0, 42),
+        Position = UDim2.new(0, 20, 0.5, -21),
+        BackgroundColor3 = self.Theme.Background,
+        BorderColor3 = self.Theme.Border,
+        BorderSizePixel = 2,
+        Text = "≡",
+        Font = self.Theme.Font,
+        TextSize = 26,
+        TextColor3 = self.Theme.Text,
+        AutoButtonColor = true,
+        AnchorPoint = Vector2.new(0, 0.5),
+    })
 
-    -- Save/Load/Reset
-    self:addToggle("Configuração","Ajustes",{Name="Salvar Configuração", Callback=function()
-        saveToLocal("MSHUB_UI_Config", self.config)
-    end})
-    self:addToggle("Configuração","Ajustes",{Name="Carregar Configuração", Callback=function()
-        local loaded = loadFromLocal("MSHUB_UI_Config")
-        if loaded then
-            self.config = loaded
-            -- Optionally: Apply config
-        end
-    end})
-    self:addToggle("Configuração","Ajustes",{Name="Resetar para Padrão", Callback=function()
-        self.config = {}
-        -- Optionally: Reset all
-    end})
-    -- Presets
-    self:addDropdown("Configuração","Ajustes",{Name="Presets", Options={"Default"}, Callback=function(preset)
-        -- Load preset
-    end})
-    -- Font color
-    self:addDropdown("Configuração","Ajustes",{Name="Cor da Fonte", Options={"Branco","Azul","Verde","Roxo"}, Callback=function(option)
-        local colors = {
-            ["Branco"] = Color3.fromRGB(240,240,247),
-            ["Azul"] = Color3.fromRGB(48, 98, 255),
-            ["Verde"] = Color3.fromRGB(40,255,60),
-            ["Roxo"] = Color3.fromRGB(160,60,255),
-        }
-        self.fontColor = colors[option] or self.theme.Text
-        for _,tab_data in pairs(self.tabs) do
-            for _,cat_frame in pairs(tab_data.categories) do
-                for _,elem in pairs(cat_frame:GetChildren()) do
-                    if elem:IsA("TextLabel") or elem:IsA("TextButton") then
-                        elem.TextColor3 = self.fontColor
-                    end
-                end
-            end
-        end
-        -- Also update external toggles' text color
-        if self.menuToggleButton then
-            self.menuToggleButton.TextColor3 = self.fontColor
-        end
-        if self.lockToggleButton then
-            self.lockToggleButton.TextColor3 = self.locked and self.theme.LockOn or self.theme.LockOff
-        end
-    end})
-    -- Theme
-    self:addDropdown("Configuração","Ajustes",{Name="Tema", Options={"Escuro","Claro"}, Callback=function(option)
-        -- Set theme
-        -- This would require changing the theme table and then rebuilding/updating the UI elements.
-        -- For simplicity, this example just has the callback.
-    end})
-    -- Font style
-    self:addDropdown("Configuração","Ajustes",{Name="Fonte", Options={"Gotham","FredokaOne","Roboto"}, Callback=function(option)
-        -- Set font
-        -- This would require iterating through all text elements and changing their Font property.
-        -- For simplicity, this example just has the callback.
-    end})
-end
-
--- HOTKEY BIND
-function Library:_bindHotkey()
-    UserInputService.InputBegan:Connect(function(input, gpe)
-        if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
-            self.menuVisible = not self.menuVisible
-            self.mainFrame.Visible = self.menuVisible
-            -- Update the external menu toggle text to reflect the change
-            if self.menuToggleButton then
-                self.menuToggleButton.Text = self.menuVisible and "H" or "S"
-            end
-        end
+    self.MenuToggle.MouseButton1Click:Connect(function()
+        self:setOpen(not self.Open)
     end)
 end
 
--- PUBLIC: Example usage
-function Library:Example()
-    local mainTab = self:addTab("Principal")
-    local cat = self:addCategory("Principal","Geral")
-    self:addToggle("Principal","Geral",{Name="Exemplo Toggle", Default=false, Callback=function(val) print("Exemplo Toggle:", val) end})
-    self:addSlider("Principal","Geral",{Name="Volume", Min=0, Max=100, Default=50, Callback=function(val) print("Volume:", val) end})
-    self:addDropdown("Principal","Geral",{Name="Modo", Options={"Fácil","Normal","Difícil"}, Callback=function(opt) print("Modo selecionado:", opt) end})
-    self:addDropdownToggle("Principal","Geral",{Name="Powerups", Options={"Speed","Jump","Invis"}, Callback=function(tbl) print("Powerups selecionados:", tbl) end})
-    self:addLabel("Principal","Geral",{Name="Aviso", Text="Bem-vindo ao menu MSHUB UI!"})
-    self:_buildConfigTab()
+function MSHUB:_buildLockToggle()
+    -- Lock/Unlock button below menu toggle
+    self.LockToggle = create("TextButton", {
+        Parent = self.ScreenGui,
+        Name = "LockToggle",
+        Size = UDim2.new(0, 42, 0, 42),
+        Position = UDim2.new(0, 20, 0.5, 30),
+        BackgroundColor3 = self.Theme.Background,
+        BorderColor3 = self.Theme.Border,
+        BorderSizePixel = 2,
+        Text = "🔒",
+        Font = self.Theme.Font,
+        TextSize = 22,
+        TextColor3 = self.Theme.Text,
+        AutoButtonColor = true,
+        AnchorPoint = Vector2.new(0, 0),
+    })
+
+    self.LockToggle.MouseButton1Click:Connect(function()
+        self.Locked = not self.Locked
+        self.LockToggle.Text = self.Locked and "🔒" or "🔓"
+    end)
+
+    -- Dragging menu if unlocked
+    local dragging, dragStart, startPos
+    local function beginDrag(input)
+        if self.Locked then return end
+        dragging = true
+        dragStart = input.Position
+        startPos = self.Menu.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+
+    local function updateDrag(input)
+        if not dragging or self.Locked then return end
+        local delta = input.Position - dragStart
+        self.Menu.Position = startPos + UDim2.new(0, delta.X, 0, delta.Y)
+    end
+
+    self.Menu.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            beginDrag(input)
+        end
+    end)
+    self.Menu.InputChanged:Connect(updateDrag)
 end
 
-return setmetatable(Library, {
-    __call = function(_, ...) return Library.new(...) end
-})
+function MSHUB:_buildConfigTab()
+    self:AddTab("Configuração", {
+        IsConfig = true,
+        Icon = "⚙️",
+        LayoutOrder = 9999,
+    })
+    local configTab = self.Tabs[#self.Tabs]
+    configTab:AddCategory("Ajustes", function(cat)
+        cat:AddButton("Salvar Configurações", function()
+            self:SaveSettings()
+        end)
+        cat:AddButton("Carregar Configurações", function()
+            self:LoadSettings()
+        end)
+        cat:AddButton("Resetar para Padrão", function()
+            self:ResetSettings()
+        end)
+        cat:AddDropdown("Tema", {"Dark", "Light"}, self.ThemeName or "Dark", function(selected)
+            self:ApplyTheme(selected)
+        end)
+        cat:AddColorPicker("Cor do Texto", self.Theme.Text, function(color)
+            self:ChangeFontColor(color)
+        end)
+        cat:AddDropdown("Fonte", {"Gotham", "Arial", "SourceSans"}, self.Font.Name, function(fontName)
+            self:ChangeFontStyle(fontName)
+        end)
+    end)
+end
 
+-- TAB & CATEGORY API
+function MSHUB:AddTab(name, options)
+    options = options or {}
+    local tab = {
+        Name = name,
+        Categories = {},
+        IsConfig = options.IsConfig,
+        Icon = options.Icon or "",
+        LayoutOrder = options.LayoutOrder or #self.Tabs + 1,
+    }
+    table.insert(self.Tabs, tab)
+
+    -- Create tab button
+    local tabBtn = create("TextButton", {
+        Parent = self.TabBar,
+        Size = UDim2.new(0, 120, 1, 0),
+        BackgroundColor3 = self.Theme.Background,
+        BorderColor3 = self.Theme.Border,
+        BorderSizePixel = 1,
+        Text = (tab.Icon ~= "" and (tab.Icon .. " ") or "") .. name,
+        Font = self.Font,
+        TextSize = 18,
+        TextColor3 = self.Theme.Text,
+        AutoButtonColor = true,
+        LayoutOrder = tab.LayoutOrder,
+        Name = name,
+    })
+    tab.TabButton = tabBtn
+
+    tabBtn.MouseButton1Click:Connect(function()
+        self:ShowTab(tab)
+    end)
+
+    -- Build tab body container (not visible until selected)
+    tab.Body = create("Frame", {
+        Parent = self.Body,
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Visible = false,
+        Name = name .. "_Body"
+    })
+
+    tab.ListLayout = create("UIListLayout", {
+        Parent = tab.Body,
+        Padding = UDim.new(0, 12),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
+    -- Tab API
+    function tab:AddCategory(catName, buildFunc)
+        local category = {
+            Name = catName,
+            Controls = {},
+        }
+        category.Frame = create("Frame", {
+            Parent = tab.Body,
+            Size = UDim2.new(1, -24, 0, 0),
+            BackgroundColor3 = self.Theme.Background,
+            BorderColor3 = self.Theme.Border,
+            BorderSizePixel = 1,
+            Name = catName,
+            AutomaticSize = Enum.AutomaticSize.Y,
+        })
+        category.Title = create("TextLabel", {
+            Parent = category.Frame,
+            Size = UDim2.new(1, 0, 0, 24),
+            BackgroundTransparency = 1,
+            Text = catName,
+            Font = self.Font,
+            TextSize = 20,
+            TextColor3 = self.Theme.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Position = UDim2.new(0, 8, 0, 0),
+        })
+        category.Body = create("Frame", {
+            Parent = category.Frame,
+            Size = UDim2.new(1, -8, 1, -24),
+            Position = UDim2.new(0, 8, 0, 24),
+            BackgroundTransparency = 1,
+            AutomaticSize = Enum.AutomaticSize.Y,
+        })
+        category.BodyLayout = create("UIListLayout", {
+            Parent = category.Body,
+            Padding = UDim.new(0, 6),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        })
+
+        -- Control adders
+        function category:AddToggle(name, default, callback)
+            local state = default and true or false
+            local btn = create("TextButton", {
+                Parent = category.Body,
+                Size = UDim2.new(1, 0, 0, 32),
+                BackgroundColor3 = self.Theme.Background,
+                BorderColor3 = self.Theme.Border,
+                BorderSizePixel = 1,
+                Text = (state and "■" or "□").." "..name,
+                Font = self.Font,
+                TextSize = 16,
+                TextColor3 = self.Theme.Text,
+                AutoButtonColor = true,
+            })
+            btn.MouseButton1Click:Connect(function()
+                state = not state
+                btn.Text = (state and "■" or "□").." "..name
+                if callback then callback(state) end
+            end)
+        end
+
+        function category:AddSlider(name, min, max, default, callback)
+            local value = default or min
+            local sliderFrame = create("Frame", {
+                Parent = category.Body,
+                Size = UDim2.new(1, 0, 0, 38),
+                BackgroundTransparency = 1,
+            })
+            local label = create("TextLabel", {
+                Parent = sliderFrame,
+                Size = UDim2.new(0.4, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Text = name..": "..tostring(value),
+                Font = self.Font,
+                TextSize = 16,
+                TextColor3 = self.Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+            })
+            local sliderBar = create("Frame", {
+                Parent = sliderFrame,
+                Size = UDim2.new(0.55, -12, 0, 14),
+                Position = UDim2.new(0.45, 6, 0.5, -7),
+                BackgroundColor3 = self.Theme.Border,
+                BorderColor3 = self.Theme.Accent,
+                BorderSizePixel = 2,
+                Name = "SliderBar",
+                ClipsDescendants = true,
+            })
+            local fill = create("Frame", {
+                Parent = sliderBar,
+                Size = UDim2.new((value-min)/(max-min), 0, 1, 0),
+                BackgroundColor3 = self.Theme.Accent,
+                BorderSizePixel = 0,
+                Name = "Fill",
+            })
+            local dragging = false
+
+            local function updateSlider(input)
+                local rel = (input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X
+                rel = math.clamp(rel, 0, 1)
+                value = math.floor((min + rel * (max - min)) + 0.5)
+                fill.Size = UDim2.new(rel, 0, 1, 0)
+                label.Text = name..": "..tostring(value)
+                if callback then callback(value) end
+            end
+
+            sliderBar.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    updateSlider(input)
+                end
+            end)
+            sliderBar.InputEnded:Connect(function(input)
+                dragging = false
+            end)
+            sliderBar.InputChanged:Connect(function(input)
+                if dragging then updateSlider(input) end
+            end)
+        end
+
+        function category:AddDropdown(name, options, default, callback)
+            local expanded = false
+            local selected = default or options[1]
+            local dropdownFrame = create("Frame", {
+                Parent = category.Body,
+                Size = UDim2.new(1, 0, 0, 36),
+                BackgroundTransparency = 1,
+            })
+            local button = create("TextButton", {
+                Parent = dropdownFrame,
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundColor3 = self.Theme.Background,
+                BorderColor3 = self.Theme.Border,
+                BorderSizePixel = 1,
+                Text = "["..name.." +]",
+                Font = self.Font,
+                TextSize = 16,
+                TextColor3 = self.Theme.Text,
+                AutoButtonColor = true,
+            })
+            local listFrame = create("Frame", {
+                Parent = dropdownFrame,
+                Size = UDim2.new(1, 0, 0, #options*28),
+                Position = UDim2.new(0, 0, 1, 0),
+                BackgroundColor3 = self.Theme.Background,
+                BorderColor3 = self.Theme.Border,
+                BorderSizePixel = 1,
+                Visible = false,
+                ZIndex = 2,
+                Name = "DropdownList"
+            })
+            local layout = create("UIListLayout", {
+                Parent = listFrame,
+                Padding = UDim.new(0, 0)
+            })
+            for _, opt in ipairs(options) do
+                local optBtn = create("TextButton", {
+                    Parent = listFrame,
+                    Size = UDim2.new(1, 0, 0, 28),
+                    BackgroundTransparency = 1,
+                    Text = opt,
+                    Font = self.Font,
+                    TextSize = 15,
+                    TextColor3 = self.Theme.Text,
+                    AutoButtonColor = true,
+                })
+                optBtn.MouseButton1Click:Connect(function()
+                    selected = opt
+                    button.Text = "["..name.." +]"
+                    listFrame.Visible = false
+                    expanded = false
+                    if callback then callback(opt) end
+                end)
+            end
+            button.MouseButton1Click:Connect(function()
+                expanded = not expanded
+                button.Text = "["..name.." "..(expanded and "–" or "+").."]"
+                listFrame.Visible = expanded
+            end)
+        end
+
+        function category:AddDropdownToggle(name, options, default, callback)
+            -- Similar to AddDropdown, but allows multiple selections (checkbox style)
+            local expanded = false
+            local selected = default or {}
+            local dropdownFrame = create("Frame", {
+                Parent = category.Body,
+                Size = UDim2.new(1, 0, 0, 36),
+                BackgroundTransparency = 1,
+            })
+            local button = create("TextButton", {
+                Parent = dropdownFrame,
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundColor3 = self.Theme.Background,
+                BorderColor3 = self.Theme.Border,
+                BorderSizePixel = 1,
+                Text = "["..name.." +]",
+                Font = self.Font,
+                TextSize = 16,
+                TextColor3 = self.Theme.Text,
+                AutoButtonColor = true,
+            })
+            local listFrame = create("Frame", {
+                Parent = dropdownFrame,
+                Size = UDim2.new(1, 0, 0, #options*28),
+                Position = UDim2.new(0, 0, 1, 0),
+                BackgroundColor3 = self.Theme.Background,
+                BorderColor3 = self.Theme.Border,
+                BorderSizePixel = 1,
+                Visible = false,
+                ZIndex = 2,
+                Name = "DropdownList"
+            })
+            local layout = create("UIListLayout", {
+                Parent = listFrame,
+                Padding = UDim.new(0, 0)
+            })
+            for _, opt in ipairs(options) do
+                local state = false
+                local optBtn = create("TextButton", {
+                    Parent = listFrame,
+                    Size = UDim2.new(1, 0, 0, 28),
+                    BackgroundTransparency = 1,
+                    Text = "□ "..opt,
+                    Font = self.Font,
+                    TextSize = 15,
+                    TextColor3 = self.Theme.Text,
+                    AutoButtonColor = true,
+                })
+                optBtn.MouseButton1Click:Connect(function()
+                    state = not state
+                    optBtn.Text = (state and "■ " or "□ ")..opt
+                    selected[opt] = state
+                    if callback then callback(selected) end
+                end)
+            end
+            button.MouseButton1Click:Connect(function()
+                expanded = not expanded
+                button.Text = "["..name.." "..(expanded and "–" or "+").."]"
+                listFrame.Visible = expanded
+            end)
+        end
+
+        function category:AddLabel(text)
+            create("TextLabel", {
+                Parent = category.Body,
+                Size = UDim2.new(1, 0, 0, 20),
+                BackgroundTransparency = 1,
+                Text = text,
+                Font = self.Font,
+                TextSize = 15,
+                TextColor3 = self.Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+            })
+        end
+
+        function category:AddButton(name, callback)
+            local btn = create("TextButton", {
+                Parent = category.Body,
+                Size = UDim2.new(1, 0, 0, 32),
+                BackgroundColor3 = self.Theme.Background,
+                BorderColor3 = self.Theme.Border,
+                BorderSizePixel = 1,
+                Text = name,
+                Font = self.Font,
+                TextSize = 16,
+                TextColor3 = self.Theme.Text,
+                AutoButtonColor = true,
+            })
+            btn.MouseButton1Click:Connect(callback)
+        end
+
+        function category:AddColorPicker(name, default, callback)
+            -- For demo: just a dropdown of a few colors
+            local colors = {
+                ["White"] = Color3.fromRGB(255,255,255),
+                ["Black"] = Color3.fromRGB(0,0,0),
+                ["Red"] = Color3.fromRGB(255,0,0),
+                ["Green"] = Color3.fromRGB(0,255,0),
+                ["Blue"] = Color3.fromRGB(0,0,255),
+                ["Accent"] = self.Theme.Accent,
+            }
+            category:AddDropdown(name, {"White","Black","Red","Green","Blue","Accent"}, "Accent", function(selected)
+                if callback then callback(colors[selected] or self.Theme.Text) end
+            end)
+        end
+
+        table.insert(tab.Categories, category)
+        if buildFunc then buildFunc(category) end
+        return category
+    end
+
+    return tab
+end
+
+function MSHUB:ShowTab(tab)
+    -- Hide all tab bodies, show selected one
+    for _, t in ipairs(self.Tabs) do
+        t.Body.Visible = false
+        t.TabButton.BackgroundColor3 = self.Theme.Background
+    end
+    tab.Body.Visible = true
+    tab.TabButton.BackgroundColor3 = self.Theme.Accent
+end
+
+function MSHUB:setOpen(bool)
+    self.Open = bool
+    self.Menu.Visible = bool
+end
+
+-- SETTINGS & CONFIG
+function MSHUB:SaveSettings()
+    -- Store current settings for demo purposes
+    self.LastSettings = {
+        Theme = self.Theme,
+        Font = self.Font,
+        -- Add more as needed
+    }
+end
+
+function MSHUB:LoadSettings()
+    if not self.LastSettings then return end
+    self:ApplyTheme(self.LastSettings.Theme)
+    self:ChangeFontStyle(self.LastSettings.Font.Name)
+end
+
+function MSHUB:ResetSettings()
+    self:ApplyTheme("Dark")
+    self:ChangeFontStyle("Gotham")
+end
+
+function MSHUB:ApplyTheme(themeName)
+    local theme = THEMES[themeName]
+    if not theme then return end
+    self.Theme = deepCopy(theme)
+    self:RefreshTheme()
+end
+
+function MSHUB:ChangeFontColor(color)
+    self.Theme.Text = color
+    self:RefreshTheme()
+end
+
+function MSHUB:ChangeFontStyle(fontName)
+    self.Theme.Font = Enum.Font[fontName] or Enum.Font.Gotham
+    self.Font = self.Theme.Font
+    self:RefreshTheme()
+end
+
+function MSHUB:RefreshTheme()
+    -- Refresh all UI colors/fonts (simplified)
+    self.Menu.BackgroundColor3 = self.Theme.Background
+    self.Menu.BorderColor3 = self.Theme.Border
+    self.TitleLabel.TextColor3 = self.Theme.Text
+    self.TitleLabel.Font = self.Theme.Font
+    -- ... iterate and refresh all controls recursively ...
+end
+
+-- RETURN LIBRARY
+return MSHUB
+
+-- USAGE EXAMPLE (for README, not executed by library itself):
 --[[
-
-How To Use:
-
-local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/<your-repo>/<your-library>/main/lua_ui_library.lua"))()
-UI:Example()
-
+local MSHUB = loadstring(game:HttpGet("https://github.com/your-github-repo/raw/main/lua_ui_mshub_doors.lua"))()
+local ui = MSHUB.new({Title = "DOORS UI", Theme = "Dark"})
+local tab = ui:AddTab("Gameplay")
+local cat = tab:AddCategory("Player")
+cat:AddToggle("Infinite Stamina", false, function(v) print("Stamina:", v) end)
+cat:AddSlider("Speed", 16, 50, 16, function(val) print("Speed:", val) end)
+cat:AddDropdown("Difficulty", {"Easy","Normal","Hard"}, "Normal", function(opt) print("Difficulty:", opt) end)
+cat:AddLabel("Section Info")
 ]]
