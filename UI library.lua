@@ -13,7 +13,7 @@ Features:
 - Tabs, categories, and features (Toggle, Slider, Dropdown, etc.)
 - Always-accessible Config tab
 - Preset management, theme/font adjustments
-- Lock/Unlock & Show/Hide menu controls
+- Lock/Unlock & Show/Hide menu controls (now external!)
 - 100% Mobile-friendly (touch, drag, tap, click)
 ]]
 
@@ -153,15 +153,15 @@ function Library:build()
     -- Draggable
     self:_makeDraggable(frame)
 
-    -- Left-side Menu Toggle & Lock
-    self:_buildMenuToggle(frame)
-    self:_buildLockToggle(frame)
+    -- External Menu Toggle & Lock
+    self:_buildExternalMenuToggle(gui)
+    self:_buildExternalLockToggle(gui)
 
     -- Tabs Bar
     local tabBar = create("Frame", {
         Name = "TabBar",
-        Size = UDim2.new(1, -56, 0, 44),
-        Position = UDim2.new(0, 56, 0, 0),
+        Size = UDim2.new(1, 0, 0, 44),
+        Position = UDim2.new(0, 0, 0, 0),
         BackgroundColor3 = self.theme.TabBar,
         BorderSizePixel = 0,
         Parent = frame
@@ -179,8 +179,8 @@ function Library:build()
     -- Tabs Content Holder
     self.tabContentHolder = create("Frame", {
         Name = "TabContentHolder",
-        Size = UDim2.new(1, -36, 1, -44),
-        Position = UDim2.new(0, 36, 0, 44),
+        Size = UDim2.new(1, -0, 1, -44),
+        Position = UDim2.new(0, 0, 0, 44),
         BackgroundTransparency = 1,
         Parent = frame
     })
@@ -237,37 +237,36 @@ function Library:_makeDraggable(frame)
     end)
 end
 
--- MENU TOGGLE BUTTON (Show/Hide)
-function Library:_buildMenuToggle(frame)
+-- EXTERNAL MENU TOGGLE BUTTON (Show/Hide)
+function Library:_buildExternalMenuToggle(gui)
     local btn = create("TextButton", {
-        Name = "MenuToggle",
+        Name = "MenuToggleExternal",
         Size = UDim2.new(0, 36, 0, 36),
-        Position = UDim2.new(0, 8, 0, 4),
+        Position = UDim2.new(0, 10, 0, 10), -- Top-left of screen
         BackgroundColor3 = self.theme.Element,
         BorderColor3 = self.theme.ElementBorder,
         BorderSizePixel = 1,
-        Text = self.menuVisible and "■" or "□",
+        Text = self.menuVisible and "H" or "S", -- H for Hide, S for Show
         Font = self.font,
         TextColor3 = self.theme.Text,
         TextSize = 24,
-        ZIndex = 4,
-        Parent = frame
+        ZIndex = 5, -- Ensure it's always on top
+        Parent = gui
     })
     btn.MouseButton1Click:Connect(function()
         self.menuVisible = not self.menuVisible
-        frame.Visible = self.menuVisible
-        btn.Text = self.menuVisible and "■" or "□"
+        self.mainFrame.Visible = self.menuVisible
+        btn.Text = self.menuVisible and "H" or "S"
     end)
-    -- Ensure always on top of all elements
-    btn.LayoutOrder = -100
+    self.menuToggleButton = btn -- Store reference for hotkey update
 end
 
--- LOCK/UNLOCK BUTTON
-function Library:_buildLockToggle(frame)
+-- EXTERNAL LOCK/UNLOCK BUTTON
+function Library:_buildExternalLockToggle(gui)
     local btn = create("TextButton", {
-        Name = "LockToggle",
+        Name = "LockToggleExternal",
         Size = UDim2.new(0, 36, 0, 36),
-        Position = UDim2.new(0, 8, 0, 44),
+        Position = UDim2.new(0, 10, 0, 50), -- Below the menu toggle
         BackgroundColor3 = self.theme.Element,
         BorderColor3 = self.theme.ElementBorder,
         BorderSizePixel = 1,
@@ -275,16 +274,17 @@ function Library:_buildLockToggle(frame)
         Font = self.font,
         TextColor3 = self.locked and self.theme.LockOn or self.theme.LockOff,
         TextSize = 22,
-        ZIndex = 4,
-        Parent = frame
+        ZIndex = 5, -- Ensure it's always on top
+        Parent = gui
     })
     btn.MouseButton1Click:Connect(function()
         self.locked = not self.locked
         btn.Text = self.locked and "🔒" or "🔓"
         btn.TextColor3 = self.locked and self.theme.LockOn or self.theme.LockOff
     end)
-    btn.LayoutOrder = -99
+    self.lockToggleButton = btn -- Store reference for hotkey update
 end
+
 
 -- TABS
 function Library:addTab(name, isConfig)
@@ -598,7 +598,31 @@ function Library:addDropdownToggle(tabName, catName, params)
                     ddBtn.Text = "[ "..params.Name.." + ]"
                 end
             end
-            ddFrame.MouseLeave:Connect(closeDD)
+            -- Add an invisible overlay to detect clicks outside the dropdown
+            local overlay = create("Frame", {
+                Size = UDim2.new(1,0,1,0),
+                BackgroundTransparency = 1,
+                ZIndex = ddFrame.ZIndex - 1,
+                Parent = ddFrame.Parent.Parent.Parent -- Correct parent to cover the whole screen
+            })
+            overlay.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or (self.mobile and input.UserInputType == Enum.UserInputType.Touch) then
+                    local mousePos = input.Position
+                    local dropdownAbsolutePos = ddFrame.AbsolutePosition
+                    local dropdownAbsoluteSize = ddFrame.AbsoluteSize
+
+                    -- Check if click is outside dropdown
+                    if not (mousePos.X >= dropdownAbsolutePos.X and mousePos.X <= dropdownAbsolutePos.X + dropdownAbsoluteSize.X and
+                            mousePos.Y >= dropdownAbsolutePos.Y and mousePos.Y <= dropdownAbsolutePos.Y + dropdownAbsoluteSize.Y) then
+                        closeDD()
+                    end
+                end
+            end)
+            ddFrame.DescendantRemoving:Connect(function(child)
+                if child == ddFrame then
+                    overlay:Destroy() -- Clean up overlay when dropdown is destroyed
+                end
+            end)
         elseif not ddOpen and ddFrame then
             ddFrame:Destroy()
             ddFrame = nil
@@ -657,23 +681,34 @@ function Library:_buildConfigTab()
             ["Roxo"] = Color3.fromRGB(160,60,255),
         }
         self.fontColor = colors[option] or self.theme.Text
-        for _,tab in pairs(self.tabs) do
-            for _,cat in pairs(tab.categories) do
-                for _,elem in pairs(cat:GetChildren()) do
+        for _,tab_data in pairs(self.tabs) do
+            for _,cat_frame in pairs(tab_data.categories) do
+                for _,elem in pairs(cat_frame:GetChildren()) do
                     if elem:IsA("TextLabel") or elem:IsA("TextButton") then
                         elem.TextColor3 = self.fontColor
                     end
                 end
             end
         end
+        -- Also update external toggles' text color
+        if self.menuToggleButton then
+            self.menuToggleButton.TextColor3 = self.fontColor
+        end
+        if self.lockToggleButton then
+            self.lockToggleButton.TextColor3 = self.locked and self.theme.LockOn or self.theme.LockOff
+        end
     end})
     -- Theme
     self:addDropdown("Configuração","Ajustes",{Name="Tema", Options={"Escuro","Claro"}, Callback=function(option)
         -- Set theme
+        -- This would require changing the theme table and then rebuilding/updating the UI elements.
+        -- For simplicity, this example just has the callback.
     end})
     -- Font style
     self:addDropdown("Configuração","Ajustes",{Name="Fonte", Options={"Gotham","FredokaOne","Roboto"}, Callback=function(option)
         -- Set font
+        -- This would require iterating through all text elements and changing their Font property.
+        -- For simplicity, this example just has the callback.
     end})
 end
 
@@ -683,6 +718,10 @@ function Library:_bindHotkey()
         if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
             self.menuVisible = not self.menuVisible
             self.mainFrame.Visible = self.menuVisible
+            -- Update the external menu toggle text to reflect the change
+            if self.menuToggleButton then
+                self.menuToggleButton.Text = self.menuVisible and "H" or "S"
+            end
         end
     end)
 end
@@ -691,10 +730,10 @@ end
 function Library:Example()
     local mainTab = self:addTab("Principal")
     local cat = self:addCategory("Principal","Geral")
-    self:addToggle("Principal","Geral",{Name="Exemplo Toggle", Default=false, Callback=function(val) end})
-    self:addSlider("Principal","Geral",{Name="Volume", Min=0, Max=100, Default=50, Callback=function(val) end})
-    self:addDropdown("Principal","Geral",{Name="Modo", Options={"Fácil","Normal","Difícil"}, Callback=function(opt) end})
-    self:addDropdownToggle("Principal","Geral",{Name="Powerups", Options={"Speed","Jump","Invis"}, Callback=function(tbl) end})
+    self:addToggle("Principal","Geral",{Name="Exemplo Toggle", Default=false, Callback=function(val) print("Exemplo Toggle:", val) end})
+    self:addSlider("Principal","Geral",{Name="Volume", Min=0, Max=100, Default=50, Callback=function(val) print("Volume:", val) end})
+    self:addDropdown("Principal","Geral",{Name="Modo", Options={"Fácil","Normal","Difícil"}, Callback=function(opt) print("Modo selecionado:", opt) end})
+    self:addDropdownToggle("Principal","Geral",{Name="Powerups", Options={"Speed","Jump","Invis"}, Callback=function(tbl) print("Powerups selecionados:", tbl) end})
     self:addLabel("Principal","Geral",{Name="Aviso", Text="Bem-vindo ao menu MSHUB UI!"})
     self:_buildConfigTab()
 end
