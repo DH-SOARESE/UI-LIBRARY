@@ -66,10 +66,10 @@ function MSHUB.new(config)
     config = config or {}
     local self = setmetatable({}, MSHUB)
     self.Theme = deepCopy(THEMES[config.Theme or "Dark"])
+    self.ThemeName = config.Theme or "Dark"
     self.Font = self.Theme.Font
     self.Title = config.Title or "MSHUB UI"
     self.Tabs = {}
-    self.Categories = {}
     self.Open = false
     self.Dragging = false
     self.Locked = true
@@ -83,6 +83,15 @@ function MSHUB.new(config)
 
     -- Show menu on startup if desired
     self:setOpen(true)
+
+    -- Automatically show the first non-config tab if exists
+    RunService.RenderStepped:Wait()
+    for _, t in ipairs(self.Tabs) do
+        if not t.IsConfig then
+            self:ShowTab(t)
+            break
+        end
+    end
 
     return self
 end
@@ -204,9 +213,11 @@ function MSHUB:_buildLockToggle()
         dragging = true
         dragStart = input.Position
         startPos = self.Menu.Position
-        input.Changed:Connect(function()
+        local conn
+        conn = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
+                if conn then conn:Disconnect() end
             end
         end)
     end
@@ -226,12 +237,11 @@ function MSHUB:_buildLockToggle()
 end
 
 function MSHUB:_buildConfigTab()
-    self:AddTab("Configuração", {
+    local configTab = self:AddTab("Configuração", {
         IsConfig = true,
         Icon = "⚙️",
         LayoutOrder = 9999,
     })
-    local configTab = self.Tabs[#self.Tabs]
     configTab:AddCategory("Ajustes", function(cat)
         cat:AddButton("Salvar Configurações", function()
             self:SaveSettings()
@@ -257,6 +267,7 @@ end
 -- TAB & CATEGORY API
 function MSHUB:AddTab(name, options)
     options = options or {}
+    local selfRef = self -- Needed for nested functions in the tab
     local tab = {
         Name = name,
         Categories = {},
@@ -311,8 +322,8 @@ function MSHUB:AddTab(name, options)
         category.Frame = create("Frame", {
             Parent = tab.Body,
             Size = UDim2.new(1, -24, 0, 0),
-            BackgroundColor3 = self.Theme.Background,
-            BorderColor3 = self.Theme.Border,
+            BackgroundColor3 = selfRef.Theme.Background,
+            BorderColor3 = selfRef.Theme.Border,
             BorderSizePixel = 1,
             Name = catName,
             AutomaticSize = Enum.AutomaticSize.Y,
@@ -322,9 +333,9 @@ function MSHUB:AddTab(name, options)
             Size = UDim2.new(1, 0, 0, 24),
             BackgroundTransparency = 1,
             Text = catName,
-            Font = self.Font,
+            Font = selfRef.Font,
             TextSize = 20,
-            TextColor3 = self.Theme.Text,
+            TextColor3 = selfRef.Theme.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Position = UDim2.new(0, 8, 0, 0),
         })
@@ -347,13 +358,13 @@ function MSHUB:AddTab(name, options)
             local btn = create("TextButton", {
                 Parent = category.Body,
                 Size = UDim2.new(1, 0, 0, 32),
-                BackgroundColor3 = self.Theme.Background,
-                BorderColor3 = self.Theme.Border,
+                BackgroundColor3 = selfRef.Theme.Background,
+                BorderColor3 = selfRef.Theme.Border,
                 BorderSizePixel = 1,
                 Text = (state and "■" or "□").." "..name,
-                Font = self.Font,
+                Font = selfRef.Font,
                 TextSize = 16,
-                TextColor3 = self.Theme.Text,
+                TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
             })
             btn.MouseButton1Click:Connect(function()
@@ -375,17 +386,17 @@ function MSHUB:AddTab(name, options)
                 Size = UDim2.new(0.4, 0, 1, 0),
                 BackgroundTransparency = 1,
                 Text = name..": "..tostring(value),
-                Font = self.Font,
+                Font = selfRef.Font,
                 TextSize = 16,
-                TextColor3 = self.Theme.Text,
+                TextColor3 = selfRef.Theme.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
             })
             local sliderBar = create("Frame", {
                 Parent = sliderFrame,
                 Size = UDim2.new(0.55, -12, 0, 14),
                 Position = UDim2.new(0.45, 6, 0.5, -7),
-                BackgroundColor3 = self.Theme.Border,
-                BorderColor3 = self.Theme.Accent,
+                BackgroundColor3 = selfRef.Theme.Border,
+                BorderColor3 = selfRef.Theme.Accent,
                 BorderSizePixel = 2,
                 Name = "SliderBar",
                 ClipsDescendants = true,
@@ -393,7 +404,7 @@ function MSHUB:AddTab(name, options)
             local fill = create("Frame", {
                 Parent = sliderBar,
                 Size = UDim2.new((value-min)/(max-min), 0, 1, 0),
-                BackgroundColor3 = self.Theme.Accent,
+                BackgroundColor3 = selfRef.Theme.Accent,
                 BorderSizePixel = 0,
                 Name = "Fill",
             })
@@ -433,21 +444,21 @@ function MSHUB:AddTab(name, options)
             local button = create("TextButton", {
                 Parent = dropdownFrame,
                 Size = UDim2.new(1, 0, 1, 0),
-                BackgroundColor3 = self.Theme.Background,
-                BorderColor3 = self.Theme.Border,
+                BackgroundColor3 = selfRef.Theme.Background,
+                BorderColor3 = selfRef.Theme.Border,
                 BorderSizePixel = 1,
                 Text = "["..name.." +]",
-                Font = self.Font,
+                Font = selfRef.Font,
                 TextSize = 16,
-                TextColor3 = self.Theme.Text,
+                TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
             })
             local listFrame = create("Frame", {
                 Parent = dropdownFrame,
                 Size = UDim2.new(1, 0, 0, #options*28),
                 Position = UDim2.new(0, 0, 1, 0),
-                BackgroundColor3 = self.Theme.Background,
-                BorderColor3 = self.Theme.Border,
+                BackgroundColor3 = selfRef.Theme.Background,
+                BorderColor3 = selfRef.Theme.Border,
                 BorderSizePixel = 1,
                 Visible = false,
                 ZIndex = 2,
@@ -463,9 +474,9 @@ function MSHUB:AddTab(name, options)
                     Size = UDim2.new(1, 0, 0, 28),
                     BackgroundTransparency = 1,
                     Text = opt,
-                    Font = self.Font,
+                    Font = selfRef.Font,
                     TextSize = 15,
-                    TextColor3 = self.Theme.Text,
+                    TextColor3 = selfRef.Theme.Text,
                     AutoButtonColor = true,
                 })
                 optBtn.MouseButton1Click:Connect(function()
@@ -495,21 +506,21 @@ function MSHUB:AddTab(name, options)
             local button = create("TextButton", {
                 Parent = dropdownFrame,
                 Size = UDim2.new(1, 0, 1, 0),
-                BackgroundColor3 = self.Theme.Background,
-                BorderColor3 = self.Theme.Border,
+                BackgroundColor3 = selfRef.Theme.Background,
+                BorderColor3 = selfRef.Theme.Border,
                 BorderSizePixel = 1,
                 Text = "["..name.." +]",
-                Font = self.Font,
+                Font = selfRef.Font,
                 TextSize = 16,
-                TextColor3 = self.Theme.Text,
+                TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
             })
             local listFrame = create("Frame", {
                 Parent = dropdownFrame,
                 Size = UDim2.new(1, 0, 0, #options*28),
                 Position = UDim2.new(0, 0, 1, 0),
-                BackgroundColor3 = self.Theme.Background,
-                BorderColor3 = self.Theme.Border,
+                BackgroundColor3 = selfRef.Theme.Background,
+                BorderColor3 = selfRef.Theme.Border,
                 BorderSizePixel = 1,
                 Visible = false,
                 ZIndex = 2,
@@ -526,9 +537,9 @@ function MSHUB:AddTab(name, options)
                     Size = UDim2.new(1, 0, 0, 28),
                     BackgroundTransparency = 1,
                     Text = "□ "..opt,
-                    Font = self.Font,
+                    Font = selfRef.Font,
                     TextSize = 15,
-                    TextColor3 = self.Theme.Text,
+                    TextColor3 = selfRef.Theme.Text,
                     AutoButtonColor = true,
                 })
                 optBtn.MouseButton1Click:Connect(function()
@@ -551,9 +562,9 @@ function MSHUB:AddTab(name, options)
                 Size = UDim2.new(1, 0, 0, 20),
                 BackgroundTransparency = 1,
                 Text = text,
-                Font = self.Font,
+                Font = selfRef.Font,
                 TextSize = 15,
-                TextColor3 = self.Theme.Text,
+                TextColor3 = selfRef.Theme.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
             })
         end
@@ -562,13 +573,13 @@ function MSHUB:AddTab(name, options)
             local btn = create("TextButton", {
                 Parent = category.Body,
                 Size = UDim2.new(1, 0, 0, 32),
-                BackgroundColor3 = self.Theme.Background,
-                BorderColor3 = self.Theme.Border,
+                BackgroundColor3 = selfRef.Theme.Background,
+                BorderColor3 = selfRef.Theme.Border,
                 BorderSizePixel = 1,
                 Text = name,
-                Font = self.Font,
+                Font = selfRef.Font,
                 TextSize = 16,
-                TextColor3 = self.Theme.Text,
+                TextColor3 = selfRef.Theme.Text,
                 AutoButtonColor = true,
             })
             btn.MouseButton1Click:Connect(callback)
@@ -582,10 +593,10 @@ function MSHUB:AddTab(name, options)
                 ["Red"] = Color3.fromRGB(255,0,0),
                 ["Green"] = Color3.fromRGB(0,255,0),
                 ["Blue"] = Color3.fromRGB(0,0,255),
-                ["Accent"] = self.Theme.Accent,
+                ["Accent"] = selfRef.Theme.Accent,
             }
             category:AddDropdown(name, {"White","Black","Red","Green","Blue","Accent"}, "Accent", function(selected)
-                if callback then callback(colors[selected] or self.Theme.Text) end
+                if callback then callback(colors[selected] or selfRef.Theme.Text) end
             end)
         end
 
@@ -637,6 +648,7 @@ function MSHUB:ApplyTheme(themeName)
     local theme = THEMES[themeName]
     if not theme then return end
     self.Theme = deepCopy(theme)
+    self.ThemeName = themeName
     self:RefreshTheme()
 end
 
