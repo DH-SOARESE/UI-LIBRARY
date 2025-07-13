@@ -1,154 +1,171 @@
--- ESP Library
+-- ESP Library (Orientada a Objetos)
+-- Feito para ser hospedado no GitHub e usado via loadstring
+
 local ESP = {}
 ESP.__index = ESP
 
--- Configuração padrão (pode ser customizada)
-ESP.Settings = {
-    Tracer = true,
-    Box2D = true,
-    Box3D = true,
-    ShowName = true,
-    ShowDistance = true,
-    NameFromLoadstring = loadstring("return 'Objeto'")() -- Altere isso se quiser
-}
+-- Lista global de instâncias ESP ativas
+local instances = {}
 
-ESP.Instances = {} -- Guardar todos os Drawing criados
+-- Serviços
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
 
--- Função para criar um objeto ESP para um target específico
-function ESP.new(target)
+-- Cria uma nova instância ESP
+function ESP.New(target, displayName)
     local self = setmetatable({}, ESP)
-    self.Target = target
-    self:CreateDrawings()
-    table.insert(ESP.Instances, self)
-    return self
-end
+    self.Target = target                -- Model, BasePart, etc
+    self.DisplayName = displayName or target.Name
+    self.Enabled = true
 
--- Cria os desenhos (tracer, box, nome, distância)
-function ESP:CreateDrawings()
+    self.ShowTracer = true
+    self.ShowBox2D = true
+    self.ShowBox3D = true
+    self.ShowName = true
+    self.ShowDistance = true
+
+    -- Drawing objects
     self.Tracer = Drawing.new("Line")
     self.Box2D = Drawing.new("Square")
     self.Box3D = Drawing.new("Quad")
     self.NameText = Drawing.new("Text")
     self.DistanceText = Drawing.new("Text")
 
-    -- Configuração visual
-    self.Tracer.Color = Color3.fromRGB(255, 0, 0)
-    self.Tracer.Thickness = 1
-
-    self.Box2D.Color = Color3.fromRGB(0, 255, 0)
-    self.Box2D.Thickness = 1
-    self.Box2D.Filled = false
-
-    self.Box3D.Color = Color3.fromRGB(0, 0, 255)
-    self.Box3D.Thickness = 1
-    self.Box3D.Filled = false
-
-    self.NameText.Color = Color3.fromRGB(255, 255, 255)
+    -- Configura textos
     self.NameText.Size = 13
     self.NameText.Center = true
     self.NameText.Outline = true
 
-    self.DistanceText.Color = Color3.fromRGB(255, 255, 0)
     self.DistanceText.Size = 13
     self.DistanceText.Center = true
     self.DistanceText.Outline = true
+
+    table.insert(instances, self)
+
+    return self
 end
 
--- Atualiza a posição e visibilidade dos ESPs
-function ESP:Update(camera)
-    if not self.Target or not self.Target.Parent then return end
+-- Atualiza uma única instância ESP
+function ESP:Update()
+    if not self.Enabled or not self.Target or not self.Target:IsDescendantOf(workspace) then
+        self:Hide()
+        return
+    end
 
-    local cf, size = self.Target:GetBoundingBox()
-    local pos, onscreen = camera:WorldToViewportPoint(cf.Position)
-
-    if onscreen then
-        -- Tracer
-        if ESP.Settings.Tracer then
-            self.Tracer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
-            self.Tracer.To = Vector2.new(pos.X, pos.Y)
-            self.Tracer.Visible = true
-        else
-            self.Tracer.Visible = false
-        end
-
-        -- Box2D (simplificado)
-        if ESP.Settings.Box2D then
-            self.Box2D.Position = Vector2.new(pos.X - size.X/2, pos.Y - size.Y/2)
-            self.Box2D.Size = Vector2.new(size.X, size.Y)
-            self.Box2D.Visible = true
-        else
-            self.Box2D.Visible = false
-        end
-
-        -- Box3D (simplificado em 2D)
-        if ESP.Settings.Box3D then
-            -- Desenhar um Quad (exemplo simples, use projeção real para ser exato)
-            local halfSize = size / 2
-            local corners = {
-                cf.Position + cf.RightVector * halfSize.X + cf.UpVector * halfSize.Y,
-                cf.Position - cf.RightVector * halfSize.X + cf.UpVector * halfSize.Y,
-                cf.Position - cf.RightVector * halfSize.X - cf.UpVector * halfSize.Y,
-                cf.Position + cf.RightVector * halfSize.X - cf.UpVector * halfSize.Y,
-            }
-            for i, corner in ipairs(corners) do
-                local screen, vis = camera:WorldToViewportPoint(corner)
-                corners[i] = Vector2.new(screen.X, screen.Y)
+    local parts = {}
+    if self.Target:IsA("Model") then
+        for _, v in ipairs(self.Target:GetDescendants()) do
+            if v:IsA("BasePart") then
+                table.insert(parts, v)
             end
-            self.Box3D.PointA = corners[1]
-            self.Box3D.PointB = corners[2]
-            self.Box3D.PointC = corners[3]
-            self.Box3D.PointD = corners[4]
-            self.Box3D.Visible = true
-        else
-            self.Box3D.Visible = false
         end
+    elseif self.Target:IsA("BasePart") then
+        parts = { self.Target }
+    end
 
-        -- Nome
-        if ESP.Settings.ShowName then
-            self.NameText.Text = ESP.Settings.NameFromLoadstring
-            self.NameText.Position = Vector2.new(pos.X, pos.Y - 20)
-            self.NameText.Visible = true
-        else
-            self.NameText.Visible = false
-        end
+    if #parts == 0 then
+        self:Hide()
+        return
+    end
 
-        -- Distância
-        if ESP.Settings.ShowDistance then
-            local distance = (camera.CFrame.Position - cf.Position).Magnitude
-            self.DistanceText.Text = string.format("%.1f m", distance)
-            self.DistanceText.Position = Vector2.new(pos.X, pos.Y + 20)
-            self.DistanceText.Visible = true
-        else
-            self.DistanceText.Visible = false
+    local min, max = nil, nil
+    for _, part in ipairs(parts) do
+        local cf, size = part.CFrame, part.Size
+        local half = size / 2
+        local corners = {
+            cf.Position + (cf.RightVector * half.X) + (cf.UpVector * half.Y) + (cf.LookVector * half.Z),
+            cf.Position - (cf.RightVector * half.X) + (cf.UpVector * half.Y) + (cf.LookVector * half.Z),
+            cf.Position + (cf.RightVector * half.X) - (cf.UpVector * half.Y) + (cf.LookVector * half.Z),
+            cf.Position + (cf.RightVector * half.X) + (cf.UpVector * half.Y) - (cf.LookVector * half.Z),
+            cf.Position - (cf.RightVector * half.X) - (cf.UpVector * half.Y) - (cf.LookVector * half.Z),
+            cf.Position + (cf.RightVector * half.X) - (cf.UpVector * half.Y) - (cf.LookVector * half.Z),
+            cf.Position - (cf.RightVector * half.X) + (cf.UpVector * half.Y) - (cf.LookVector * half.Z),
+            cf.Position - (cf.RightVector * half.X) - (cf.UpVector * half.Y) + (cf.LookVector * half.Z),
+        }
+
+        for _, corner in ipairs(corners) do
+            if not min then
+                min = corner
+                max = corner
+            else
+                min = Vector3.new(math.min(min.X, corner.X), math.min(min.Y, corner.Y), math.min(min.Z, corner.Z))
+                max = Vector3.new(math.max(max.X, corner.X), math.max(max.Y, corner.Y), math.max(max.Z, corner.Z))
+            end
         end
-    else
-        self.Tracer.Visible = false
-        self.Box2D.Visible = false
-        self.Box3D.Visible = false
-        self.NameText.Visible = false
-        self.DistanceText.Visible = false
+    end
+
+    -- Centro e distância
+    local center = (min + max) / 2
+    local screenPos, onScreen = Camera:WorldToViewportPoint(center)
+    local distance = (Camera.CFrame.Position - center).Magnitude
+
+    -- Tracer
+    self.Tracer.Visible = self.ShowTracer and onScreen
+    if self.Tracer.Visible then
+        self.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+        self.Tracer.To = Vector2.new(screenPos.X, screenPos.Y)
+        self.Tracer.Color = Color3.fromRGB(255, 0, 0)
+        self.Tracer.Thickness = 1
+    end
+
+    -- Box2D
+    local topLeft, _ = Camera:WorldToViewportPoint(Vector3.new(min.X, max.Y, min.Z))
+    local bottomRight, _ = Camera:WorldToViewportPoint(Vector3.new(max.X, min.Y, max.Z))
+    self.Box2D.Visible = self.ShowBox2D and onScreen
+    if self.Box2D.Visible then
+        self.Box2D.Position = Vector2.new(topLeft.X, topLeft.Y)
+        self.Box2D.Size = Vector2.new(bottomRight.X - topLeft.X, bottomRight.Y - topLeft.Y)
+        self.Box2D.Color = Color3.fromRGB(0, 255, 0)
+        self.Box2D.Thickness = 1
+    end
+
+    -- Name
+    self.NameText.Visible = self.ShowName and onScreen
+    if self.NameText.Visible then
+        self.NameText.Text = self.DisplayName
+        self.NameText.Position = Vector2.new(screenPos.X, screenPos.Y - 20)
+        self.NameText.Color = Color3.fromRGB(255, 255, 255)
+    end
+
+    -- Distance
+    self.DistanceText.Visible = self.ShowDistance and onScreen
+    if self.DistanceText.Visible then
+        self.DistanceText.Text = string.format("%.1fm", distance)
+        self.DistanceText.Position = Vector2.new(screenPos.X, screenPos.Y + 10)
+        self.DistanceText.Color = Color3.fromRGB(255, 255, 0)
+    end
+
+    -- Box3D (simplificado: só desenha uma quad no plano frontal)
+    self.Box3D.Visible = self.ShowBox3D and onScreen
+    if self.Box3D.Visible then
+        local frontTopLeft = Camera:WorldToViewportPoint(Vector3.new(min.X, max.Y, max.Z))
+        local frontTopRight = Camera:WorldToViewportPoint(Vector3.new(max.X, max.Y, max.Z))
+        local frontBottomLeft = Camera:WorldToViewportPoint(Vector3.new(min.X, min.Y, max.Z))
+        local frontBottomRight = Camera:WorldToViewportPoint(Vector3.new(max.X, min.Y, max.Z))
+
+        self.Box3D.PointA = Vector2.new(frontTopLeft.X, frontTopLeft.Y)
+        self.Box3D.PointB = Vector2.new(frontTopRight.X, frontTopRight.Y)
+        self.Box3D.PointC = Vector2.new(frontBottomRight.X, frontBottomRight.Y)
+        self.Box3D.PointD = Vector2.new(frontBottomLeft.X, frontBottomLeft.Y)
+        self.Box3D.Color = Color3.fromRGB(0, 0, 255)
+        self.Box3D.Thickness = 1
     end
 end
 
--- Loop para atualizar todos os ESPs
-task.spawn(function()
-    local camera = workspace.CurrentCamera
-    while true do
-        for _, esp in ipairs(ESP.Instances) do
-            esp:Update(camera)
-        end
-        task.wait()
+-- Esconde todos os elementos da ESP
+function ESP:Hide()
+    self.Tracer.Visible = false
+    self.Box2D.Visible = false
+    self.Box3D.Visible = false
+    self.NameText.Visible = false
+    self.DistanceText.Visible = false
+end
+
+-- Loop global para atualizar todas as instâncias
+RunService.RenderStepped:Connect(function()
+    for _, esp in ipairs(instances) do
+        esp:Update()
     end
 end)
-
--- Exemplo de uso:
-local objects = { -- Substitua pelos endereços reais dos objetos
-    workspace.Part,
-    -- workspace.CurrentRooms["n"].Parts:GetChildren()[1], etc.
-}
-
-for _, obj in ipairs(objects) do
-    ESP.new(obj)
-end
 
 return ESP
