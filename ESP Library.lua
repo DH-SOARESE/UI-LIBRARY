@@ -1,135 +1,154 @@
--- ESP Library (v1) by ChatGPT
+-- ESP Library
 local ESP = {}
 ESP.__index = ESP
 
-function ESP.new()
+-- Configuração padrão (pode ser customizada)
+ESP.Settings = {
+    Tracer = true,
+    Box2D = true,
+    Box3D = true,
+    ShowName = true,
+    ShowDistance = true,
+    NameFromLoadstring = loadstring("return 'Objeto'")() -- Altere isso se quiser
+}
+
+ESP.Instances = {} -- Guardar todos os Drawing criados
+
+-- Função para criar um objeto ESP para um target específico
+function ESP.new(target)
     local self = setmetatable({}, ESP)
-    self.objects = {} -- {obj=Instance, drawings={}}
-    self.enabled = {
-        tracer = true,
-        box = true,
-        box3d = true,
-        name = true,
-        distance = true
-    }
-    self.nameFunc = function(obj) return obj.Name end
-    self.updateConnection = nil
-    self:StartUpdate()
+    self.Target = target
+    self:CreateDrawings()
+    table.insert(ESP.Instances, self)
     return self
 end
 
-function ESP:SetNameFunc(func)
-    self.nameFunc = func
+-- Cria os desenhos (tracer, box, nome, distância)
+function ESP:CreateDrawings()
+    self.Tracer = Drawing.new("Line")
+    self.Box2D = Drawing.new("Square")
+    self.Box3D = Drawing.new("Quad")
+    self.NameText = Drawing.new("Text")
+    self.DistanceText = Drawing.new("Text")
+
+    -- Configuração visual
+    self.Tracer.Color = Color3.fromRGB(255, 0, 0)
+    self.Tracer.Thickness = 1
+
+    self.Box2D.Color = Color3.fromRGB(0, 255, 0)
+    self.Box2D.Thickness = 1
+    self.Box2D.Filled = false
+
+    self.Box3D.Color = Color3.fromRGB(0, 0, 255)
+    self.Box3D.Thickness = 1
+    self.Box3D.Filled = false
+
+    self.NameText.Color = Color3.fromRGB(255, 255, 255)
+    self.NameText.Size = 13
+    self.NameText.Center = true
+    self.NameText.Outline = true
+
+    self.DistanceText.Color = Color3.fromRGB(255, 255, 0)
+    self.DistanceText.Size = 13
+    self.DistanceText.Center = true
+    self.DistanceText.Outline = true
 end
 
-function ESP:AddObject(obj)
-    local data = {
-        obj = obj,
-        tracer = Drawing.new("Line"),
-        box = Drawing.new("Square"),
-        box3d = Drawing.new("Square"),
-        name = Drawing.new("Text"),
-        distance = Drawing.new("Text"),
-    }
-    data.tracer.Color = Color3.new(1,1,1)
-    data.tracer.Thickness = 1
-    data.box.Color = Color3.new(1,1,1)
-    data.box.Thickness = 2
-    data.box.Filled = false
-    data.box3d.Color = Color3.new(0,1,0)
-    data.box3d.Thickness = 1
-    data.box3d.Filled = false
-    data.name.Color = Color3.new(1,1,0)
-    data.name.Size = 16
-    data.name.Center = true
-    data.distance.Color = Color3.new(1,1,1)
-    data.distance.Size = 14
-    data.distance.Center = true
+-- Atualiza a posição e visibilidade dos ESPs
+function ESP:Update(camera)
+    if not self.Target or not self.Target.Parent then return end
 
-    table.insert(self.objects, data)
-end
+    local cf, size = self.Target:GetBoundingBox()
+    local pos, onscreen = camera:WorldToViewportPoint(cf.Position)
 
-function ESP:Clear()
-    for _, data in ipairs(self.objects) do
-        for _, drawing in pairs(data) do
-            if typeof(drawing) == "Instance" and drawing.Destroy then
-                drawing:Destroy()
-            end
+    if onscreen then
+        -- Tracer
+        if ESP.Settings.Tracer then
+            self.Tracer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
+            self.Tracer.To = Vector2.new(pos.X, pos.Y)
+            self.Tracer.Visible = true
+        else
+            self.Tracer.Visible = false
         end
+
+        -- Box2D (simplificado)
+        if ESP.Settings.Box2D then
+            self.Box2D.Position = Vector2.new(pos.X - size.X/2, pos.Y - size.Y/2)
+            self.Box2D.Size = Vector2.new(size.X, size.Y)
+            self.Box2D.Visible = true
+        else
+            self.Box2D.Visible = false
+        end
+
+        -- Box3D (simplificado em 2D)
+        if ESP.Settings.Box3D then
+            -- Desenhar um Quad (exemplo simples, use projeção real para ser exato)
+            local halfSize = size / 2
+            local corners = {
+                cf.Position + cf.RightVector * halfSize.X + cf.UpVector * halfSize.Y,
+                cf.Position - cf.RightVector * halfSize.X + cf.UpVector * halfSize.Y,
+                cf.Position - cf.RightVector * halfSize.X - cf.UpVector * halfSize.Y,
+                cf.Position + cf.RightVector * halfSize.X - cf.UpVector * halfSize.Y,
+            }
+            for i, corner in ipairs(corners) do
+                local screen, vis = camera:WorldToViewportPoint(corner)
+                corners[i] = Vector2.new(screen.X, screen.Y)
+            end
+            self.Box3D.PointA = corners[1]
+            self.Box3D.PointB = corners[2]
+            self.Box3D.PointC = corners[3]
+            self.Box3D.PointD = corners[4]
+            self.Box3D.Visible = true
+        else
+            self.Box3D.Visible = false
+        end
+
+        -- Nome
+        if ESP.Settings.ShowName then
+            self.NameText.Text = ESP.Settings.NameFromLoadstring
+            self.NameText.Position = Vector2.new(pos.X, pos.Y - 20)
+            self.NameText.Visible = true
+        else
+            self.NameText.Visible = false
+        end
+
+        -- Distância
+        if ESP.Settings.ShowDistance then
+            local distance = (camera.CFrame.Position - cf.Position).Magnitude
+            self.DistanceText.Text = string.format("%.1f m", distance)
+            self.DistanceText.Position = Vector2.new(pos.X, pos.Y + 20)
+            self.DistanceText.Visible = true
+        else
+            self.DistanceText.Visible = false
+        end
+    else
+        self.Tracer.Visible = false
+        self.Box2D.Visible = false
+        self.Box3D.Visible = false
+        self.NameText.Visible = false
+        self.DistanceText.Visible = false
     end
-    self.objects = {}
 end
 
-function ESP:StartUpdate()
-    local cam = workspace.CurrentCamera
-    self.updateConnection = game:GetService("RunService").RenderStepped:Connect(function()
-        for _, data in ipairs(self.objects) do
-            local obj = data.obj
-            if obj and obj.Parent then
-                local pos
-                if obj:IsA("Model") then
-                    local primary = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                    if primary then pos = primary.Position end
-                elseif obj:IsA("BasePart") then
-                    pos = obj.Position
-                end
-
-                if pos then
-                    local screenPos, onScreen = cam:WorldToViewportPoint(pos)
-                    if onScreen then
-                        -- Tracer
-                        data.tracer.Visible = self.enabled.tracer
-                        if data.tracer.Visible then
-                            data.tracer.From = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y)
-                            data.tracer.To = Vector2.new(screenPos.X, screenPos.Y)
-                        end
-
-                        -- Box 2D
-                        data.box.Visible = self.enabled.box
-                        if data.box.Visible then
-                            data.box.Size = Vector2.new(40,40)
-                            data.box.Position = Vector2.new(screenPos.X - 20, screenPos.Y - 20)
-                        end
-
-                        -- Box 3D (fake, só outro quadrado maior)
-                        data.box3d.Visible = self.enabled.box3d
-                        if data.box3d.Visible then
-                            data.box3d.Size = Vector2.new(60,60)
-                            data.box3d.Position = Vector2.new(screenPos.X - 30, screenPos.Y - 30)
-                        end
-
-                        -- Name
-                        data.name.Visible = self.enabled.name
-                        if data.name.Visible then
-                            data.name.Text = self.nameFunc(obj)
-                            data.name.Position = Vector2.new(screenPos.X, screenPos.Y - 35)
-                        end
-
-                        -- Distance
-                        data.distance.Visible = self.enabled.distance
-                        if data.distance.Visible then
-                            local dist = (cam.CFrame.Position - pos).Magnitude
-                            data.distance.Text = string.format("%.0f m", dist)
-                            data.distance.Position = Vector2.new(screenPos.X, screenPos.Y + 35)
-                        end
-                    else
-                        data.tracer.Visible = false
-                        data.box.Visible = false
-                        data.box3d.Visible = false
-                        data.name.Visible = false
-                        data.distance.Visible = false
-                    end
-                end
-            else
-                -- Objeto não existe mais
-                data.tracer.Visible = false
-                data.box.Visible = false
-                data.box3d.Visible = false
-                data.name.Visible = false
-                data.distance.Visible = false
-            end
+-- Loop para atualizar todos os ESPs
+task.spawn(function()
+    local camera = workspace.CurrentCamera
+    while true do
+        for _, esp in ipairs(ESP.Instances) do
+            esp:Update(camera)
         end
-    end)
+        task.wait()
+    end
+end)
+
+-- Exemplo de uso:
+local objects = { -- Substitua pelos endereços reais dos objetos
+    workspace.Part,
+    -- workspace.CurrentRooms["n"].Parts:GetChildren()[1], etc.
+}
+
+for _, obj in ipairs(objects) do
+    ESP.new(obj)
 end
 
 return ESP
