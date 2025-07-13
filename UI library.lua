@@ -155,16 +155,161 @@ function MSHUB:_buildUI()
         VerticalAlignment = Enum.VerticalAlignment.Center,
     })
 
-    -- Body (ScrollingFrame for tab content)
-    self.Body = create("Frame", {
+    -- Body (Frame for tab content, with vertical scroll bar at right)
+    -- Now: make the menu body area a Frame with a vertical ScrollBar at the right
+    -- We'll create a vertical frame container for tabs, and a scrollbar next to it
+    -- We'll use a simple custom scrollbar implementation for the menu
+
+    -- Create the tab content container (Frame inside Menu)
+    self.BodyContainer = create("Frame", {
         Parent = self.Menu,
-        Name = "Body",
+        Name = "BodyContainer",
         Position = UDim2.new(0, 0, 0, 74),
-        Size = UDim2.new(1, 0, 1, -74),
+        Size = UDim2.new(1, -12, 1, -74), -- leave space for scrollbar
         BackgroundTransparency = 1,
         ClipsDescendants = true,
         BorderSizePixel = 0,
     })
+
+    -- The actual content (will be filled by tab bodies)
+    self.Body = create("Frame", {
+        Parent = self.BodyContainer,
+        Name = "Body",
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+        BorderSizePixel = 0,
+    })
+
+    -- Custom vertical scrollbar (at right edge)
+    self.ScrollBar = create("Frame", {
+        Parent = self.Menu,
+        Name = "CustomScrollBar",
+        Size = UDim2.new(0, 8, 1, -74),
+        Position = UDim2.new(1, -8, 0, 74),
+        BackgroundColor3 = Color3.fromRGB(40, 40, 60),
+        BorderColor3 = self.Theme.Border,
+        BorderSizePixel = 0,
+        Visible = true,
+        ClipsDescendants = true,
+        ZIndex = 10,
+    })
+
+    self.ScrollThumb = create("Frame", {
+        Parent = self.ScrollBar,
+        Name = "ScrollThumb",
+        Size = UDim2.new(1, 0, 0, 40),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = self.Theme.Accent,
+        BorderSizePixel = 0,
+        ZIndex = 11,
+    })
+
+    -- Add scrolling logic
+    self.ScrollPosition = 0
+
+    local function updateScrollBar()
+        -- Find the currently visible tab's body (ScrollingFrame)
+        local visibleTab
+        for _, tab in ipairs(self.Tabs) do
+            if tab.Body and tab.Body.Visible then
+                visibleTab = tab
+                break
+            end
+        end
+        if not visibleTab then
+            self.ScrollBar.Visible = false
+            return
+        end
+
+        local body = visibleTab.Body
+        if not body:IsA("ScrollingFrame") then
+            self.ScrollBar.Visible = false
+            return
+        end
+
+        local canvas = body.CanvasSize.Y.Offset
+        local view = body.AbsoluteWindowSize.Y
+        if canvas <= view + 2 then
+            self.ScrollBar.Visible = false
+            body.CanvasPosition = Vector2.new(0, 0)
+            return
+        end
+
+        self.ScrollBar.Visible = true
+        -- Thumb height
+        local ratio = math.clamp(view / canvas, 0.1, 1)
+        local thumbHeight = math.max(ratio * self.ScrollBar.AbsoluteSize.Y, 20)
+        local maxOffset = canvas - view
+        local y = 0
+        if maxOffset > 0 then
+            y = (body.CanvasPosition.Y / maxOffset) * (self.ScrollBar.AbsoluteSize.Y - thumbHeight)
+        end
+        self.ScrollThumb.Size = UDim2.new(1, 0, 0, thumbHeight)
+        self.ScrollThumb.Position = UDim2.new(0, 0, 0, y)
+    end
+
+    -- Scroll from scrollbar drag
+    local draggingThumb = false
+    local dragStartY, thumbStartY
+
+    self.ScrollThumb.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingThumb = true
+            dragStartY = input.Position.Y
+            thumbStartY = self.ScrollThumb.Position.Y.Offset
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingThumb and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position.Y - dragStartY
+            local newY = math.clamp(thumbStartY + delta, 0, self.ScrollBar.AbsoluteSize.Y - self.ScrollThumb.AbsoluteSize.Y)
+            self.ScrollThumb.Position = UDim2.new(0, 0, 0, newY)
+
+            -- Update canvas position of visible tab
+            for _, tab in ipairs(self.Tabs) do
+                if tab.Body and tab.Body.Visible then
+                    local body = tab.Body
+                    if body:IsA("ScrollingFrame") then
+                        local canvas = body.CanvasSize.Y.Offset
+                        local view = body.AbsoluteWindowSize.Y
+                        local maxOffset = canvas - view
+                        if maxOffset > 0 then
+                            local percent = newY / (self.ScrollBar.AbsoluteSize.Y - self.ScrollThumb.AbsoluteSize.Y)
+                            body.CanvasPosition = Vector2.new(0, percent * maxOffset)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingThumb = false
+        end
+    end)
+
+    -- Mouse wheel and touch scroll event
+    self.BodyContainer.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            for _, tab in ipairs(self.Tabs) do
+                if tab.Body and tab.Body.Visible and tab.Body:IsA("ScrollingFrame") then
+                    local body = tab.Body
+                    -- Scroll up/down
+                    local scrollAmount = -input.Position.Z * 32
+                    local newPos = math.clamp(body.CanvasPosition.Y + scrollAmount, 0, math.max(0, body.CanvasSize.Y.Offset - body.AbsoluteWindowSize.Y))
+                    body.CanvasPosition = Vector2.new(0, newPos)
+                    updateScrollBar()
+                end
+            end
+        end
+    end)
+
+    -- Keep scrollbar in sync
+    RunService.RenderStepped:Connect(updateScrollBar)
 end
 
 function MSHUB:_buildMenuToggle()
@@ -310,7 +455,7 @@ function MSHUB:AddTab(name, options)
         BackgroundTransparency = 1,
         Visible = false,
         Name = name .. "_Body",
-        ScrollBarThickness = 8,
+        ScrollBarThickness = 0, -- disable default ScrollBar
         CanvasSize = UDim2.new(0, 0, 0, 0),
         ScrollingDirection = Enum.ScrollingDirection.Y,
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -730,6 +875,10 @@ function MSHUB:RefreshTheme()
     self.LockToggle.BorderColor3 = self.Theme.Border
     self.LockToggle.TextColor3 = self.Theme.Text
     self.LockToggle.Font = self.Theme.Font
+
+    self.ScrollBar.BackgroundColor3 = Color3.fromRGB(40,40,60)
+    self.ScrollBar.BorderColor3 = self.Theme.Border
+    self.ScrollThumb.BackgroundColor3 = self.Theme.Accent
 
     for _, tab in ipairs(self.Tabs) do
         if tab.TabButton then
