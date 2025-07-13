@@ -1,625 +1,713 @@
 --[[
-  MSHUB-Style UI Library for Roblox (DOORS Compatible)
-  Author: DH-SOARESE
-  Inspired by MSHUB. Minimalist, modern, touch-friendly, and highly customizable.
-  Save/Load/Reset Presets, Full Mobile Compatibility, Custom Themes & Fonts.
-  Use: loadstring(game:HttpGet("LINK-DO-GITHUB"))()
---]]
+MSHUB-Inspired UI Library for Roblox (DOORS-ready, Mobile Compatible)
 
-local UserInputService = game:GetService("UserInputService")
+Author: DH-SOARESE
+License: MIT
+Repo: https://github.com/<your-repo>/<your-library>
+
+Usage:
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/<your-repo>/<your-library>/main/lua_ui_library.lua"))()
+
+Features:
+- Modern, square, minimal UI
+- Tabs, categories, and features (Toggle, Slider, Dropdown, etc.)
+- Always-accessible Config tab
+- Preset management, theme/font adjustments
+- Lock/Unlock & Show/Hide menu controls
+- 100% Mobile-friendly (touch, drag, tap, click)
+]]
+
 local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
---[[
-  CORE CONFIGURATION
---]]
-local DEFAULTS = {
-    Theme = {
-        Background = Color3.fromRGB(27, 30, 39),
-        Accent = Color3.fromRGB(63, 81, 181),
-        Tab = Color3.fromRGB(36, 41, 54),
-        Category = Color3.fromRGB(31, 34, 44),
-        Border = Color3.fromRGB(50, 53, 65),
-        Text = Color3.fromRGB(230, 230, 230),
-        ToggleOn = Color3.fromRGB(63, 81, 181),
-        ToggleOff = Color3.fromRGB(60, 61, 73),
-        Slider = Color3.fromRGB(63, 81, 181),
-        Dropdown = Color3.fromRGB(40, 44, 55),
-        DropdownSelected = Color3.fromRGB(63, 81, 181),
-        Button = Color3.fromRGB(63, 81, 181),
-    },
-    Font = Enum.Font.Gotham,
-    FontSize = Enum.FontSize.Size18
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
+
+local LIBRARY_VERSION = "1.0.0"
+
+local DEFAULT_THEME = {
+    Background        = Color3.fromRGB(24,24,28),
+    TabBar            = Color3.fromRGB(32,32,36),
+    TabActive         = Color3.fromRGB(48, 98, 255),
+    TabInactive       = Color3.fromRGB(40,40,44),
+    Category          = Color3.fromRGB(30,30,32),
+    CategoryBorder    = Color3.fromRGB(60,60,70),
+    Element           = Color3.fromRGB(45,45,52),
+    ElementBorder     = Color3.fromRGB(66,66,76),
+    Text              = Color3.fromRGB(240,240,247),
+    TextInactive      = Color3.fromRGB(160,160,168),
+    ToggleOn          = Color3.fromRGB(48, 98, 255),
+    ToggleOff         = Color3.fromRGB(60,60,72),
+    SliderBar         = Color3.fromRGB(38,72,180),
+    SliderBG          = Color3.fromRGB(44,44,55),
+    DropdownBG        = Color3.fromRGB(38,44,55),
+    DropdownBorder    = Color3.fromRGB(60,60,70),
+    ButtonHighlight   = Color3.fromRGB(48,98,255),
+    LockOn            = Color3.fromRGB(255,40,40),
+    LockOff           = Color3.fromRGB(40,255,60),
 }
 
-local LIBRARY = {
-    _version = "1.0.0",
-    _theme = DEFAULTS.Theme,
-    _font = DEFAULTS.Font,
-    _fontSize = DEFAULTS.FontSize,
-    _configPresets = {},
-    _connections = {},
-    _menuOpened = true,
-    _menuLocked = false,
-    _currentConfig = {},
-}
+local DEFAULT_FONT = Enum.Font.Gotham
 
-local function deepCopy(tab)
-    if type(tab) ~= "table" then return tab end
-    local ret = {}
-    for k, v in pairs(tab) do
-        ret[k] = deepCopy(v)
+local Library = {}
+Library.__index = Library
+
+-- Utility: Responsive sizing
+local function isMobile()
+    return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+
+local function round(num, bracket)
+    bracket = bracket or 1
+    return math.floor(num/bracket + 0.5) * bracket
+end
+
+local function deepCopy(tbl)
+    if type(tbl) ~= "table" then return tbl end
+    local t = {}
+    for k,v in pairs(tbl) do
+        t[k] = type(v) == "table" and deepCopy(v) or v
     end
-    return ret
+    return t
 end
 
---[[
-  UTILITY: Save/Load/Reset Config
-  (Uses HttpService:SetAsync/GetAsync in an actual game)
---]]
-function LIBRARY:SaveConfig(name)
-    self._configPresets[name or "Default"] = deepCopy(self._currentConfig)
-end
-
-function LIBRARY:LoadConfig(name)
-    if self._configPresets[name] then
-        for k, v in pairs(self._configPresets[name]) do
-            if self._currentConfig[k] ~= nil then
-                self._currentConfig[k] = v
-            end
+local function saveToLocal(key, tbl)
+    pcall(function()
+        if writefile then
+            writefile(key..".json", HttpService:JSONEncode(tbl))
         end
-        self:RefreshUI()
-    end
-end
-
-function LIBRARY:ResetConfig()
-    self._currentConfig = {}
-    self:RefreshUI()
-end
-
---[[
-  UI CONSTRUCTION HELPERS
---]]
-local function Create(class, props)
-    local inst = Instance.new(class)
-    for k, v in pairs(props or {}) do
-        inst[k] = v
-    end
-    return inst
-end
-
-local function ApplyTheme(obj, key)
-    if obj:IsA("GuiObject") then
-        obj.BackgroundColor3 = LIBRARY._theme[key] or obj.BackgroundColor3
-    end
-end
-
-local function ApplyFont(obj)
-    if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-        obj.Font = LIBRARY._font
-        obj.TextColor3 = LIBRARY._theme.Text
-        obj.TextSize = tonumber(tostring(LIBRARY._fontSize):gsub("%D+", "")) or 18
-    end
-end
-
---[[
-  MAIN UI HOLDER
---]]
-local screenGui = Create("ScreenGui", {
-    Name = "MSHUB_UI",
-    ResetOnSpawn = false,
-    IgnoreGuiInset = true,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    Parent = game:GetService("CoreGui")
-})
-
-local menuFrame = Create("Frame", {
-    Name = "MenuFrame",
-    Size = UDim2.new(0, 480, 0, 420),
-    Position = UDim2.new(0.5, -240, 0.5, -210),
-    BackgroundTransparency = 0,
-    BorderSizePixel = 0,
-    Visible = true,
-    Active = true,
-    Draggable = true,
-    Parent = screenGui
-})
-ApplyTheme(menuFrame, "Background")
-
--- SQUARE BORDERS
-local border = Create("UIStroke", {
-    Color = LIBRARY._theme.Border,
-    Thickness = 1.5,
-    Parent = menuFrame
-})
-Create("UICorner", {CornerRadius = UDim.new(0, 9), Parent = menuFrame})
-
--- MENU HEADER: Title and Tabs
-local header = Create("Frame", {
-    Name = "Header",
-    Size = UDim2.new(1, 0, 0, 46),
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    Parent = menuFrame
-})
-
-local menuTitle = Create("TextLabel", {
-    Name = "MenuTitle",
-    Text = "Menu Título",
-    Size = UDim2.new(0, 200, 1, 0),
-    Position = UDim2.new(0, 20, 0, 0),
-    BackgroundTransparency = 1,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    Parent = header
-})
-ApplyFont(menuTitle)
-
--- TABS HOLDER
-local tabsFrame = Create("Frame", {
-    Name = "TabsFrame",
-    Size = UDim2.new(1, -230, 1, 0),
-    Position = UDim2.new(0, 220, 0, 0),
-    BackgroundTransparency = 1,
-    Parent = header
-})
-
-local tabsLayout = Create("UIListLayout", {
-    FillDirection = Enum.FillDirection.Horizontal,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 6),
-    Parent = tabsFrame
-})
-
--- TOGGLE MENU BUTTON (Always visible)
-local openToggle = Create("TextButton", {
-    Name = "OpenToggle",
-    Text = "☰",
-    Size = UDim2.new(0, 36, 0, 36),
-    Position = UDim2.new(0, -46, 0, 5),
-    BackgroundColor3 = LIBRARY._theme.Tab,
-    BorderSizePixel = 0,
-    Parent = menuFrame
-})
-ApplyFont(openToggle)
-Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = openToggle})
-
--- LOCK/UNLOCK BUTTON (Always visible)
-local lockToggle = Create("TextButton", {
-    Name = "LockToggle",
-    Text = "🔒",
-    Size = UDim2.new(0, 36, 0, 36),
-    Position = UDim2.new(0, -92, 0, 5),
-    BackgroundColor3 = LIBRARY._theme.Tab,
-    BorderSizePixel = 0,
-    Parent = menuFrame
-})
-ApplyFont(lockToggle)
-Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = lockToggle})
-
--- Holds all tab contents, only one visible at a time
-local contentFrame = Create("Frame", {
-    Name = "ContentFrame",
-    Size = UDim2.new(1, 0, 1, -46),
-    Position = UDim2.new(0, 0, 0, 46),
-    BackgroundTransparency = 1,
-    Parent = menuFrame
-})
-
---[[
-  TAB SYSTEM
---]]
-LIBRARY._tabs = {}
-local selectedTab = nil
-
-function LIBRARY:Tab(name)
-    local tabBtn = Create("TextButton", {
-        Name = "Tab_" .. name,
-        Text = name,
-        Size = UDim2.new(0, 100, 1, 0),
-        BackgroundColor3 = LIBRARY._theme.Tab,
-        BorderSizePixel = 0,
-        AutoButtonColor = false,
-        Parent = tabsFrame
-    })
-    ApplyFont(tabBtn)
-    Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = tabBtn})
-
-    local tabContent = Create("Frame", {
-        Name = "TabContent_" .. name,
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Visible = false,
-        Parent = contentFrame
-    })
-
-    LIBRARY._tabs[name] = {Button = tabBtn, Content = tabContent, Categories = {}}
-
-    tabBtn.MouseButton1Click:Connect(function()
-        if selectedTab then
-            LIBRARY._tabs[selectedTab].Content.Visible = false
-            LIBRARY._tabs[selectedTab].Button.BackgroundColor3 = LIBRARY._theme.Tab
-        end
-        selectedTab = name
-        tabContent.Visible = true
-        tabBtn.BackgroundColor3 = LIBRARY._theme.Accent
     end)
+end
 
-    -- If first tab, select it
-    if not selectedTab then
-        tabBtn:Activate()
-        tabBtn.BackgroundColor3 = LIBRARY._theme.Accent
-        tabContent.Visible = true
-        selectedTab = name
+local function loadFromLocal(key)
+    pcall(function()
+        if isfile and isfile(key..".json") then
+            local dat = readfile(key..".json")
+            return HttpService:JSONDecode(dat)
+        end
+    end)
+    return nil
+end
+
+-- UI OBJECTS
+local function create(objType, props)
+    local obj = Instance.new(objType)
+    for k, v in pairs(props or {}) do
+        obj[k] = v
+    end
+    return obj
+end
+
+-- MAIN UI LIBRARY CONSTRUCTOR
+function Library.new(opts)
+    opts = opts or {}
+    local self = setmetatable({}, Library)
+    self.theme = deepCopy(DEFAULT_THEME)
+    self.font = opts.Font or DEFAULT_FONT
+    self.fontColor = self.theme.Text
+    self.title = opts.Title or "MSHUB UI"
+    self.tabs = {}
+    self.tabOrder = {}
+    self.selectedTab = nil
+    self.presets = {}
+    self.config = {}
+    self.locked = false
+    self.menuVisible = true
+    self.mobile = isMobile()
+    self.gui = nil
+    self:build()
+    return self
+end
+
+-- TOP-LEVEL UI BUILD
+function Library:build()
+    if self.gui then self.gui:Destroy() end
+
+    -- Destroy any other instance
+    if game.CoreGui:FindFirstChild("MSHUB_UI") then
+        game.CoreGui.MSHUB_UI:Destroy()
     end
 
-    -- CATEGORY ADDER
-    function LIBRARY._tabs[name]:Category(catName)
-        local catFrame = Create("Frame", {
-            Name = "Category_" .. catName,
-            Size = UDim2.new(1, -30, 0, 80),
-            BackgroundColor3 = LIBRARY._theme.Category,
-            BorderSizePixel = 0,
-            Parent = tabContent
-        })
-        local catStroke = Create("UIStroke", {
-            Color = LIBRARY._theme.Border,
-            Thickness = 1,
-            Parent = catFrame
-        })
-        Create("UICorner", {CornerRadius = UDim.new(0, 7), Parent = catFrame})
+    local gui = create("ScreenGui", {
+        Name = "MSHUB_UI",
+        ResetOnSpawn = false,
+        Parent = game:GetService("CoreGui"),
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    })
+    self.gui = gui
 
-        local catLabel = Create("TextLabel", {
-            Name = "CategoryLabel",
-            Text = catName,
-            Size = UDim2.new(1, 0, 0, 22),
-            BackgroundTransparency = 1,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Position = UDim2.new(0, 10, 0, 5),
-            Parent = catFrame
-        })
-        ApplyFont(catLabel)
+    -- Main Frame
+    local frame = create("Frame", {
+        Name = "MainFrame",
+        BackgroundColor3 = self.theme.Background,
+        BorderSizePixel = 0,
+        Size = self.mobile and UDim2.new(0, 340, 0, 480) or UDim2.new(0, 420, 0, 540),
+        Position = UDim2.new(0.5, -210, 0.5, -270),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Visible = true,
+        Parent = gui
+    })
+    self.mainFrame = frame
 
-        local featuresHolder = Create("Frame", {
-            Name = "FeaturesHolder",
-            Size = UDim2.new(1, -20, 1, -30),
-            Position = UDim2.new(0, 10, 0, 25),
-            BackgroundTransparency = 1,
-            Parent = catFrame
-        })
+    -- Draggable
+    self:_makeDraggable(frame)
 
-        Create("UIListLayout", {
-            FillDirection = Enum.FillDirection.Horizontal,
-            SortOrder = Enum.SortOrder.LayoutOrder,
-            Padding = UDim.new(0, 10),
-            Parent = featuresHolder
-        })
+    -- Left-side Menu Toggle & Lock
+    self:_buildMenuToggle(frame)
+    self:_buildLockToggle(frame)
 
-        LIBRARY._tabs[name].Categories[catName] = {Frame = catFrame, Features = {}, Holder = featuresHolder}
+    -- Tabs Bar
+    local tabBar = create("Frame", {
+        Name = "TabBar",
+        Size = UDim2.new(1, -56, 0, 44),
+        Position = UDim2.new(0, 56, 0, 0),
+        BackgroundColor3 = self.theme.TabBar,
+        BorderSizePixel = 0,
+        Parent = frame
+    })
+    self.tabBar = tabBar
 
-        -- FEATURE ADDERS
-        function LIBRARY._tabs[name].Categories[catName]:Toggle(label, default, callback)
-            local key = name .. "_" .. catName .. "_" .. label
-            LIBRARY._currentConfig[key] = default
-            local btn = Create("TextButton", {
-                Text = default and "■ " .. label or "□ " .. label,
-                Size = UDim2.new(0, 140, 0, 34),
-                BackgroundColor3 = LIBRARY._theme.ToggleOff,
-                BorderSizePixel = 0,
-                AutoButtonColor = true,
-                Parent = featuresHolder
-            })
-            ApplyFont(btn)
-            Create("UICorner", {CornerRadius = UDim.new(0, 7), Parent = btn})
+    -- Tab Buttons (dynamic)
+    self.tabBtnHolder = create("Frame", {
+        Name = "TabBtnHolder",
+        Size = UDim2.new(1,0,1,0),
+        BackgroundTransparency = 1,
+        Parent = tabBar
+    })
 
-            local function update()
-                btn.Text = LIBRARY._currentConfig[key] and "■ " .. label or "□ " .. label
-                btn.BackgroundColor3 = LIBRARY._currentConfig[key] and LIBRARY._theme.ToggleOn or LIBRARY._theme.ToggleOff
-            end
-            update()
+    -- Tabs Content Holder
+    self.tabContentHolder = create("Frame", {
+        Name = "TabContentHolder",
+        Size = UDim2.new(1, -36, 1, -44),
+        Position = UDim2.new(0, 36, 0, 44),
+        BackgroundTransparency = 1,
+        Parent = frame
+    })
 
-            btn.MouseButton1Click:Connect(function()
-                LIBRARY._currentConfig[key] = not LIBRARY._currentConfig[key]
-                update()
-                if callback then callback(LIBRARY._currentConfig[key]) end
+    -- Tabs ListLayout
+    local tabList = create("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        Padding = UDim.new(0, 8),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = self.tabBtnHolder
+    })
+
+    -- Register default Config tab (always last)
+    self:addTab("Configuração", true)
+
+    -- Hide/Show hotkey: [RightShift]
+    self:_bindHotkey()
+end
+
+-- DRAGGABLE
+function Library:_makeDraggable(frame)
+    local dragToggle, dragInput, dragStart, startPos
+    frame.Active = true
+
+    local function update(input)
+        if not self.locked then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                frame.Position.X.Scale, frame.Position.X.Offset + delta.X,
+                frame.Position.Y.Scale, frame.Position.Y.Offset + delta.Y
+            )
+        end
+    end
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or (self.mobile and input.UserInputType == Enum.UserInputType.Touch) then
+            dragToggle = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragToggle = false end
             end)
         end
+    end)
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or (self.mobile and input.UserInputType == Enum.UserInputType.Touch) then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragToggle then
+            update(input)
+        end
+    end)
+end
 
-        function LIBRARY._tabs[name].Categories[catName]:Slider(label, min, max, default, callback)
-            local key = name .. "_" .. catName .. "_" .. label
-            LIBRARY._currentConfig[key] = default
-            local sliderFrame = Create("Frame", {
-                Size = UDim2.new(0, 140, 0, 34),
-                BackgroundColor3 = LIBRARY._theme.Slider,
-                Parent = featuresHolder
-            })
-            Create("UICorner", {CornerRadius = UDim.new(0, 7), Parent = sliderFrame})
+-- MENU TOGGLE BUTTON (Show/Hide)
+function Library:_buildMenuToggle(frame)
+    local btn = create("TextButton", {
+        Name = "MenuToggle",
+        Size = UDim2.new(0, 36, 0, 36),
+        Position = UDim2.new(0, 8, 0, 4),
+        BackgroundColor3 = self.theme.Element,
+        BorderColor3 = self.theme.ElementBorder,
+        BorderSizePixel = 1,
+        Text = self.menuVisible and "■" or "□",
+        Font = self.font,
+        TextColor3 = self.theme.Text,
+        TextSize = 24,
+        ZIndex = 4,
+        Parent = frame
+    })
+    btn.MouseButton1Click:Connect(function()
+        self.menuVisible = not self.menuVisible
+        frame.Visible = self.menuVisible
+        btn.Text = self.menuVisible and "■" or "□"
+    end)
+    -- Ensure always on top of all elements
+    btn.LayoutOrder = -100
+end
 
-            local sliderBar = Create("Frame", {
-                Size = UDim2.new(1, -50, 0, 8),
-                Position = UDim2.new(0, 10, 0.5, -4),
-                BackgroundColor3 = LIBRARY._theme.Border,
-                BorderSizePixel = 0,
-                Parent = sliderFrame
-            })
-            Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = sliderBar})
+-- LOCK/UNLOCK BUTTON
+function Library:_buildLockToggle(frame)
+    local btn = create("TextButton", {
+        Name = "LockToggle",
+        Size = UDim2.new(0, 36, 0, 36),
+        Position = UDim2.new(0, 8, 0, 44),
+        BackgroundColor3 = self.theme.Element,
+        BorderColor3 = self.theme.ElementBorder,
+        BorderSizePixel = 1,
+        Text = self.locked and "🔒" or "🔓",
+        Font = self.font,
+        TextColor3 = self.locked and self.theme.LockOn or self.theme.LockOff,
+        TextSize = 22,
+        ZIndex = 4,
+        Parent = frame
+    })
+    btn.MouseButton1Click:Connect(function()
+        self.locked = not self.locked
+        btn.Text = self.locked and "🔒" or "🔓"
+        btn.TextColor3 = self.locked and self.theme.LockOn or self.theme.LockOff
+    end)
+    btn.LayoutOrder = -99
+end
 
-            local fill = Create("Frame", {
-                BackgroundColor3 = LIBRARY._theme.Accent,
-                BorderSizePixel = 0,
-                Size = UDim2.new((default-min)/(max-min), 0, 1, 0),
-                Parent = sliderBar
-            })
-            Create("UICorner", {CornerRadius = UDim.new(0, 4), Parent = fill})
+-- TABS
+function Library:addTab(name, isConfig)
+    isConfig = isConfig or false
+    if self.tabs[name] then return self.tabs[name] end
 
-            local valueLabel = Create("TextLabel", {
-                Text = tostring(default),
-                Size = UDim2.new(0, 36, 1, 0),
-                Position = UDim2.new(1, -36, 0, 0),
-                BackgroundTransparency = 1,
-                Parent = sliderFrame
-            })
-            ApplyFont(valueLabel)
+    -- Tab content frame
+    local tabContent = create("Frame", {
+        Name = "Tab_"..name,
+        Visible = false,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1,0,1,0),
+        Parent = self.tabContentHolder
+    })
 
-            sliderBar.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    local function move(input)
-                        local rel = math.clamp((input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X, 0, 1)
-                        local value = math.floor((min + (max-min)*rel) + 0.5)
-                        LIBRARY._currentConfig[key] = value
-                        fill.Size = UDim2.new(rel, 0, 1, 0)
-                        valueLabel.Text = tostring(value)
-                        if callback then callback(value) end
-                    end
-                    move(input)
-                    local conn
-                    conn = UserInputService.InputChanged:Connect(function(input2)
-                        if input2.UserInputType == Enum.UserInputType.MouseMovement or input2.UserInputType == Enum.UserInputType.Touch then
-                            move(input2)
-                        end
-                    end)
-                    local endConn
-                    endConn = UserInputService.InputEnded:Connect(function(input3)
-                        if input3.UserInputType == Enum.UserInputType.MouseButton1 or input3.UserInputType == Enum.UserInputType.Touch then
-                            if conn then conn:Disconnect() end
-                            if endConn then endConn:Disconnect() end
-                        end
-                    end)
+    -- Tab button
+    local tabBtn = create("TextButton", {
+        Name = "TabBtn_"..name,
+        Text = name,
+        Font = self.font,
+        TextSize = 18,
+        TextColor3 = self.theme.TextInactive,
+        BackgroundColor3 = isConfig and self.theme.TabActive or self.theme.TabInactive,
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, 92, 1, 0),
+        LayoutOrder = isConfig and 999 or (#self.tabOrder+1),
+        Parent = self.tabBtnHolder
+    })
+
+    -- Tab select
+    tabBtn.MouseButton1Click:Connect(function()
+        self:selectTab(name)
+    end)
+
+    -- Record
+    self.tabs[name] = {frame = tabContent, btn = tabBtn, categories = {}, isConfig = isConfig}
+    if not isConfig then
+        table.insert(self.tabOrder, name)
+    end
+
+    -- Config tab always at end
+    if isConfig then
+        tabBtn.LayoutOrder = 999
+    end
+
+    -- First tab auto-select
+    if not self.selectedTab or isConfig then
+        self:selectTab(name)
+    end
+
+    return self.tabs[name]
+end
+
+function Library:selectTab(name)
+    for tabName, tab in pairs(self.tabs) do
+        tab.frame.Visible = (tabName == name)
+        tab.btn.BackgroundColor3 = tab.isConfig and self.theme.TabActive or (tabName == name and self.theme.TabActive or self.theme.TabInactive)
+        tab.btn.TextColor3 = tabName == name and self.theme.Text or self.theme.TextInactive
+    end
+    self.selectedTab = name
+end
+
+-- CATEGORY
+function Library:addCategory(tabName, catName)
+    assert(self.tabs[tabName], "Tab does not exist: "..tabName)
+    local tab = self.tabs[tabName]
+
+    local cat = create("Frame", {
+        Name = "Category_"..catName,
+        Size = UDim2.new(1, -16, 0, 88),
+        BackgroundColor3 = self.theme.Category,
+        BorderColor3 = self.theme.CategoryBorder,
+        BorderSizePixel = 1,
+        Position = UDim2.new(0,8,0, #tab.categories*96 + 12),
+        Parent = tab.frame
+    })
+    local catTitle = create("TextLabel", {
+        Name = "CatTitle",
+        Text = catName,
+        Font = self.font,
+        TextSize = 16,
+        TextColor3 = self.theme.Text,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -12, 0, 22),
+        Position = UDim2.new(0, 6, 0, 4),
+        Parent = cat
+    })
+    tab.categories[catName] = cat
+    return cat
+end
+
+-- FEATURE CONTROLS
+function Library:addToggle(tabName, catName, params)
+    local cat = self.tabs[tabName].categories[catName]
+    local toggle = create("TextButton", {
+        Name = "Toggle_"..params.Name,
+        Size = UDim2.new(0, 108, 0, 38),
+        Position = UDim2.new(0, 8 + ((#cat:GetChildren()-1)*116), 0, 30),
+        BackgroundColor3 = self.theme.Element,
+        BorderColor3 = self.theme.ElementBorder,
+        BorderSizePixel = 1,
+        Text = params.Default and "■ "..params.Name or "□ "..params.Name,
+        Font = self.font,
+        TextColor3 = params.Default and self.theme.ToggleOn or self.theme.ToggleOff,
+        TextSize = 16,
+        Parent = cat
+    })
+    local state = params.Default or false
+    toggle.MouseButton1Click:Connect(function()
+        state = not state
+        toggle.Text = state and "■ "..params.Name or "□ "..params.Name
+        toggle.TextColor3 = state and self.theme.ToggleOn or self.theme.ToggleOff
+        if params.Callback then params.Callback(state) end
+    end)
+    return toggle
+end
+
+function Library:addSlider(tabName, catName, params)
+    local cat = self.tabs[tabName].categories[catName]
+    local sliderFrame = create("Frame", {
+        Name = "Slider_"..params.Name,
+        Size = UDim2.new(0, 148, 0, 38),
+        Position = UDim2.new(0, 8 + ((#cat:GetChildren()-1)*156), 0, 30),
+        BackgroundColor3 = self.theme.Element,
+        BorderColor3 = self.theme.ElementBorder,
+        BorderSizePixel = 1,
+        Parent = cat
+    })
+    local label = create("TextLabel", {
+        Name = "SliderLabel",
+        Text = params.Name,
+        Font = self.font,
+        TextSize = 15,
+        BackgroundTransparency = 1,
+        TextColor3 = self.theme.Text,
+        Size = UDim2.new(1, -46, 1, 0),
+        Position = UDim2.new(0,6,0,0),
+        Parent = sliderFrame
+    })
+    local sliderBar = create("Frame", {
+        Name = "SliderBarBG",
+        Size = UDim2.new(0, 60, 0, 6),
+        Position = UDim2.new(1, -66, 0.5, -3),
+        BackgroundColor3 = self.theme.SliderBG,
+        BorderSizePixel = 0,
+        Parent = sliderFrame
+    })
+    local sliderFill = create("Frame", {
+        Name = "SliderFill",
+        Size = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = self.theme.SliderBar,
+        BorderSizePixel = 0,
+        Parent = sliderBar
+    })
+    local valueLabel = create("TextLabel", {
+        Name = "SliderValue",
+        Text = tostring(params.Default or params.Min or 0),
+        Font = self.font,
+        TextSize = 14,
+        BackgroundTransparency = 1,
+        TextColor3 = self.theme.Text,
+        Size = UDim2.new(0, 36, 1, 0),
+        Position = UDim2.new(1, 2, 0, 0),
+        Parent = sliderBar
+    })
+    local min, max = params.Min or 0, params.Max or 100
+    local value = params.Default or min
+    local function updateSlider(px)
+        local percent = math.clamp(px/60, 0, 1)
+        value = round((max-min)*percent + min)
+        sliderFill.Size = UDim2.new(percent,0,1,0)
+        valueLabel.Text = tostring(value)
+        if params.Callback then params.Callback(value) end
+    end
+    sliderBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or (self.mobile and input.UserInputType == Enum.UserInputType.Touch) then
+            updateSlider(input.Position.X - sliderBar.AbsolutePosition.X)
+            local conn
+            conn = UserInputService.InputChanged:Connect(function(move)
+                if move.UserInputType == Enum.UserInputType.MouseMovement or (self.mobile and move.UserInputType == Enum.UserInputType.Touch) then
+                    updateSlider(move.Position.X - sliderBar.AbsolutePosition.X)
+                end
+            end)
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    if conn then conn:Disconnect() end
                 end
             end)
         end
+    end)
+    -- Initial
+    updateSlider(((value-min)/(max-min))*60)
+    return sliderFrame
+end
 
-        function LIBRARY._tabs[name].Categories[catName]:Dropdown(label, options, default, callback)
-            local key = name .. "_" .. catName .. "_" .. label
-            LIBRARY._currentConfig[key] = default or options[1]
-            local btn = Create("TextButton", {
-                Text = "[" .. label .. " +]",
-                Size = UDim2.new(0, 140, 0, 34),
-                BackgroundColor3 = LIBRARY._theme.Dropdown,
-                BorderSizePixel = 0,
-                AutoButtonColor = true,
-                Parent = featuresHolder
+function Library:addDropdown(tabName, catName, params)
+    local cat = self.tabs[tabName].categories[catName]
+    local ddBtn = create("TextButton", {
+        Name = "Dropdown_"..params.Name,
+        Size = UDim2.new(0, 148, 0, 38),
+        Position = UDim2.new(0, 8 + ((#cat:GetChildren()-1)*156), 0, 30),
+        BackgroundColor3 = self.theme.Element,
+        BorderColor3 = self.theme.ElementBorder,
+        BorderSizePixel = 1,
+        Text = "[ "..params.Name.." + ]",
+        Font = self.font,
+        TextColor3 = self.theme.Text,
+        TextSize = 16,
+        Parent = cat
+    })
+    local ddOpen = false
+    local ddFrame
+    ddBtn.MouseButton1Click:Connect(function()
+        ddOpen = not ddOpen
+        ddBtn.Text = ddOpen and "[ "..params.Name.." – ]" or "[ "..params.Name.." + ]"
+        if not ddFrame then
+            ddFrame = create("Frame", {
+                Name = "DropdownList",
+                Size = UDim2.new(0, 148, 0, 32*#params.Options),
+                Position = UDim2.new(0, ddBtn.Position.X.Offset, 0, ddBtn.Position.Y.Offset+38),
+                BackgroundColor3 = self.theme.DropdownBG,
+                BorderColor3 = self.theme.DropdownBorder,
+                BorderSizePixel = 1,
+                Parent = cat
             })
-            ApplyFont(btn)
-            Create("UICorner", {CornerRadius = UDim.new(0, 7), Parent = btn})
-
-            local open = false
-            local dropdownFrame = Create("Frame", {
-                Size = UDim2.new(1, 0, 0, #options * 28),
-                Position = UDim2.new(0, 0, 1, 0),
-                BackgroundColor3 = LIBRARY._theme.Dropdown,
-                Visible = false,
-                Parent = btn
-            })
-            Create("UICorner", {CornerRadius = UDim.new(0, 7), Parent = dropdownFrame})
-
-            for i, opt in ipairs(options) do
-                local optBtn = Create("TextButton", {
-                    Text = opt,
-                    Size = UDim2.new(1, 0, 0, 28),
-                    Position = UDim2.new(0, 0, 0, (i-1)*28),
+            for i, option in ipairs(params.Options) do
+                local optBtn = create("TextButton", {
+                    Name = "Option_"..option,
+                    Size = UDim2.new(1,0,0,32),
+                    Position = UDim2.new(0,0,0,(i-1)*32),
                     BackgroundTransparency = 1,
-                    Parent = dropdownFrame
+                    BorderSizePixel = 0,
+                    Text = option,
+                    Font = self.font,
+                    TextColor3 = self.theme.Text,
+                    TextSize = 15,
+                    Parent = ddFrame
                 })
-                ApplyFont(optBtn)
                 optBtn.MouseButton1Click:Connect(function()
-                    LIBRARY._currentConfig[key] = opt
-                    btn.Text = "[" .. label .. " -]"
-                    dropdownFrame.Visible = false
-                    open = false
-                    if callback then callback(opt) end
+                    ddBtn.Text = "[ "..option.." + ]"
+                    if params.Callback then params.Callback(option) end
+                    ddOpen = false
+                    ddFrame:Destroy()
+                    ddFrame = nil
                 end)
             end
-
-            btn.MouseButton1Click:Connect(function()
-                open = not open
-                btn.Text = open and "[" .. label .. " -]" or "[" .. label .. " +]"
-                dropdownFrame.Visible = open
-            end)
+        elseif not ddOpen and ddFrame then
+            ddFrame:Destroy()
+            ddFrame = nil
         end
+    end)
+    return ddBtn
+end
 
-        function LIBRARY._tabs[name].Categories[catName]:DropdownToggle(label, options, defaults, callback)
-            local key = name .. "_" .. catName .. "_" .. label
-            LIBRARY._currentConfig[key] = defaults or {}
-            local btn = Create("TextButton", {
-                Text = "[" .. label .. " +]",
-                Size = UDim2.new(0, 140, 0, 34),
-                BackgroundColor3 = LIBRARY._theme.Dropdown,
-                BorderSizePixel = 0,
-                AutoButtonColor = true,
-                Parent = featuresHolder
+function Library:addDropdownToggle(tabName, catName, params)
+    local cat = self.tabs[tabName].categories[catName]
+    local ddBtn = create("TextButton", {
+        Name = "DropdownToggle_"..params.Name,
+        Size = UDim2.new(0, 148, 0, 38),
+        Position = UDim2.new(0, 8 + ((#cat:GetChildren()-1)*156), 0, 30),
+        BackgroundColor3 = self.theme.Element,
+        BorderColor3 = self.theme.ElementBorder,
+        BorderSizePixel = 1,
+        Text = "[ "..params.Name.." + ]",
+        Font = self.font,
+        TextColor3 = self.theme.Text,
+        TextSize = 16,
+        Parent = cat
+    })
+    local ddOpen = false
+    local ddFrame
+    local selected = {}
+    ddBtn.MouseButton1Click:Connect(function()
+        ddOpen = not ddOpen
+        ddBtn.Text = ddOpen and "[ "..params.Name.." – ]" or "[ "..params.Name.." + ]"
+        if not ddFrame then
+            ddFrame = create("Frame", {
+                Name = "DropdownList",
+                Size = UDim2.new(0, 148, 0, 32*#params.Options),
+                Position = UDim2.new(0, ddBtn.Position.X.Offset, 0, ddBtn.Position.Y.Offset+38),
+                BackgroundColor3 = self.theme.DropdownBG,
+                BorderColor3 = self.theme.DropdownBorder,
+                BorderSizePixel = 1,
+                Parent = cat
             })
-            ApplyFont(btn)
-            Create("UICorner", {CornerRadius = UDim.new(0, 7), Parent = btn})
-
-            local open = false
-            local dropdownFrame = Create("Frame", {
-                Size = UDim2.new(1, 0, 0, #options * 28),
-                Position = UDim2.new(0, 0, 1, 0),
-                BackgroundColor3 = LIBRARY._theme.Dropdown,
-                Visible = false,
-                Parent = btn
-            })
-            Create("UICorner", {CornerRadius = UDim.new(0, 7), Parent = dropdownFrame})
-
-            local selected = {}
-            for i, opt in ipairs(options) do
-                selected[opt] = false
-                local optBtn = Create("TextButton", {
-                    Text = "□ " .. opt,
-                    Size = UDim2.new(1, 0, 0, 28),
-                    Position = UDim2.new(0, 0, 0, (i-1)*28),
+            for i, option in ipairs(params.Options) do
+                local optBtn = create("TextButton", {
+                    Name = "Option_"..option,
+                    Size = UDim2.new(1,0,0,32),
+                    Position = UDim2.new(0,0,0,(i-1)*32),
                     BackgroundTransparency = 1,
-                    Parent = dropdownFrame
+                    BorderSizePixel = 0,
+                    Text = "□ "..option,
+                    Font = self.font,
+                    TextColor3 = self.theme.Text,
+                    TextSize = 15,
+                    Parent = ddFrame
                 })
-                ApplyFont(optBtn)
                 optBtn.MouseButton1Click:Connect(function()
-                    selected[opt] = not selected[opt]
-                    optBtn.Text = selected[opt] and "■ " .. opt or "□ " .. opt
-                    local sel = {}
-                    for name, v in pairs(selected) do if v then table.insert(sel, name) end end
-                    LIBRARY._currentConfig[key] = sel
-                    if callback then callback(sel) end
+                    selected[option] = not selected[option]
+                    optBtn.Text = (selected[option] and "■ " or "□ ")..option
+                    if params.Callback then params.Callback(selected) end
                 end)
             end
-
-            btn.MouseButton1Click:Connect(function()
-                open = not open
-                btn.Text = open and "[" .. label .. " -]" or "[" .. label .. " +]"
-                dropdownFrame.Visible = open
-            end)
-        end
-
-        function LIBRARY._tabs[name].Categories[catName]:Label(text)
-            local lbl = Create("TextLabel", {
-                Text = text,
-                Size = UDim2.new(0, 140, 0, 34),
-                BackgroundTransparency = 1,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = featuresHolder
-            })
-            ApplyFont(lbl)
-        end
-
-        return LIBRARY._tabs[name].Categories[catName]
-    end
-
-    return LIBRARY._tabs[name]
-end
-
---[[
-  CONFIGURATION TAB (Always last)
---]]
-local configTab = LIBRARY:Tab("Configuração")
-local configCat = configTab:Category("Ajustes Gerais")
-
-configCat:Label("Gerenciar configurações do menu:")
-
-configCat:Toggle("Salvar Configuração", false, function(val)
-    if val then
-        LIBRARY:SaveConfig("Usuário")
-    end
-end)
-
-configCat:Toggle("Carregar Configuração", false, function(val)
-    if val then
-        LIBRARY:LoadConfig("Usuário")
-    end
-end)
-
-configCat:Toggle("Resetar Padrão", false, function(val)
-    if val then
-        LIBRARY:ResetConfig()
-    end
-end)
-
-configCat:Dropdown("Preset Rápido", {"Default", "Usuário"}, "Default", function(opt)
-    LIBRARY:LoadConfig(opt)
-end)
-
-configCat:Dropdown("Cor da Fonte", {"Branco", "Azul", "Verde"}, "Branco", function(opt)
-    if opt == "Branco" then LIBRARY._theme.Text = Color3.fromRGB(230,230,230)
-    elseif opt == "Azul" then LIBRARY._theme.Text = Color3.fromRGB(63, 81, 181)
-    elseif opt == "Verde" then LIBRARY._theme.Text = Color3.fromRGB(76, 175, 80)
-    end
-    LIBRARY:RefreshUI()
-end)
-
-configCat:Dropdown("Tema", {"Padrão", "Escuro", "Claro"}, "Padrão", function(opt)
-    if opt == "Padrão" then LIBRARY._theme.Background = Color3.fromRGB(27, 30, 39)
-    elseif opt == "Escuro" then LIBRARY._theme.Background = Color3.fromRGB(20, 20, 20)
-    elseif opt == "Claro" then LIBRARY._theme.Background = Color3.fromRGB(220, 220, 220)
-    end
-    LIBRARY:RefreshUI()
-end)
-
-configCat:Dropdown("Fonte", {"Gotham", "Arial", "FredokaOne"}, "Gotham", function(opt)
-    if opt == "Gotham" then LIBRARY._font = Enum.Font.Gotham
-    elseif opt == "Arial" then LIBRARY._font = Enum.Font.Arial
-    elseif opt == "FredokaOne" then LIBRARY._font = Enum.Font.FredokaOne
-    end
-    LIBRARY:RefreshUI()
-end)
-
---[[
-  MENU FUNCTIONALITY: Open/Close, Lock/Unlock, Dragging, Responsiveness
---]]
-openToggle.MouseButton1Click:Connect(function()
-    LIBRARY._menuOpened = not LIBRARY._menuOpened
-    menuFrame.Visible = LIBRARY._menuOpened
-end)
-
-lockToggle.MouseButton1Click:Connect(function()
-    LIBRARY._menuLocked = not LIBRARY._menuLocked
-    lockToggle.Text = LIBRARY._menuLocked and "🔒" or "🔓"
-    menuFrame.Draggable = not LIBRARY._menuLocked
-end)
-
--- Responsive resizing for mobile
-local function updateMenuSize()
-    if UserInputService.TouchEnabled or UserInputService.KeyboardEnabled then
-        menuFrame.Size = UDim2.new(0, math.clamp(workspace.CurrentCamera.ViewportSize.X*0.85, 320, 480), 0, math.clamp(workspace.CurrentCamera.ViewportSize.Y*0.70, 320, 480))
-        menuFrame.Position = UDim2.new(0.5, -menuFrame.AbsoluteSize.X/2, 0.5, -menuFrame.AbsoluteSize.Y/2)
-    end
-end
-updateMenuSize()
-RunService.RenderStepped:Connect(updateMenuSize)
-
--- Touch/Drag support is automatic with Frame.Draggable, but we refresh .Draggable property on lock/unlock
-
---[[
-  REFRESH UI ON THEME/FONT CHANGE
---]]
-function LIBRARY:RefreshUI()
-    -- Recursively update all elements
-    local function updateAll(obj)
-        if obj:IsA("Frame") or obj:IsA("TextButton") or obj:IsA("TextLabel") then
-            if obj.BackgroundColor3 then
-                obj.BackgroundColor3 = self._theme.Background
+            -- Clicking outside closes
+            local function closeDD()
+                if ddFrame then
+                    ddFrame:Destroy()
+                    ddFrame = nil
+                    ddOpen = false
+                    ddBtn.Text = "[ "..params.Name.." + ]"
+                end
             end
-            if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-                obj.Font = self._font
-                obj.TextColor3 = self._theme.Text
+            ddFrame.MouseLeave:Connect(closeDD)
+        elseif not ddOpen and ddFrame then
+            ddFrame:Destroy()
+            ddFrame = nil
+        end
+    end)
+    return ddBtn
+end
+
+function Library:addLabel(tabName, catName, params)
+    local cat = self.tabs[tabName].categories[catName]
+    local label = create("TextLabel", {
+        Name = "Label_"..params.Name,
+        Size = UDim2.new(1,-24,0,22),
+        Position = UDim2.new(0,8,0,30+((#cat:GetChildren()-1)*26)),
+        BackgroundTransparency = 1,
+        Text = params.Text or params.Name,
+        Font = self.font,
+        TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextColor3 = self.theme.Text,
+        Parent = cat
+    })
+    return label
+end
+
+-- CONFIG TAB SPECIAL
+function Library:_buildConfigTab()
+    local tab = self.tabs["Configuração"]
+    local cat = self:addCategory("Configuração","Ajustes")
+
+    -- Save/Load/Reset
+    self:addToggle("Configuração","Ajustes",{Name="Salvar Configuração", Callback=function()
+        saveToLocal("MSHUB_UI_Config", self.config)
+    end})
+    self:addToggle("Configuração","Ajustes",{Name="Carregar Configuração", Callback=function()
+        local loaded = loadFromLocal("MSHUB_UI_Config")
+        if loaded then
+            self.config = loaded
+            -- Optionally: Apply config
+        end
+    end})
+    self:addToggle("Configuração","Ajustes",{Name="Resetar para Padrão", Callback=function()
+        self.config = {}
+        -- Optionally: Reset all
+    end})
+    -- Presets
+    self:addDropdown("Configuração","Ajustes",{Name="Presets", Options={"Default"}, Callback=function(preset)
+        -- Load preset
+    end})
+    -- Font color
+    self:addDropdown("Configuração","Ajustes",{Name="Cor da Fonte", Options={"Branco","Azul","Verde","Roxo"}, Callback=function(option)
+        local colors = {
+            ["Branco"] = Color3.fromRGB(240,240,247),
+            ["Azul"] = Color3.fromRGB(48, 98, 255),
+            ["Verde"] = Color3.fromRGB(40,255,60),
+            ["Roxo"] = Color3.fromRGB(160,60,255),
+        }
+        self.fontColor = colors[option] or self.theme.Text
+        for _,tab in pairs(self.tabs) do
+            for _,cat in pairs(tab.categories) do
+                for _,elem in pairs(cat:GetChildren()) do
+                    if elem:IsA("TextLabel") or elem:IsA("TextButton") then
+                        elem.TextColor3 = self.fontColor
+                    end
+                end
             end
         end
-        for _, child in ipairs(obj:GetChildren()) do
-            updateAll(child)
-        end
-    end
-    updateAll(menuFrame)
+    end})
+    -- Theme
+    self:addDropdown("Configuração","Ajustes",{Name="Tema", Options={"Escuro","Claro"}, Callback=function(option)
+        -- Set theme
+    end})
+    -- Font style
+    self:addDropdown("Configuração","Ajustes",{Name="Fonte", Options={"Gotham","FredokaOne","Roboto"}, Callback=function(option)
+        -- Set font
+    end})
 end
 
---[[
-  SAMPLE USAGE (DELETE BELOW FOR PRODUCTION)
---]]
---[[
-local mainTab = LIBRARY:Tab("Tab1")
-local catA = mainTab:Category("Categoria 1")
-catA:Label("Seção de recursos:")
-catA:Toggle("Exemplo Toggle", false, function(val) print("Toggle:", val) end)
-catA:Slider("Exemplo Slider", 0, 100, 30, function(val) print("Slider:", val) end)
-catA:Dropdown("Exemplo Dropdown", {"A", "B", "C"}, "A", function(opt) print("Dropdown:", opt) end)
-catA:DropdownToggle("Exemplo DropdownToggle", {"X", "Y", "Z"}, {}, function(opts) print("DropdownToggle:", opts) end)
---]]
+-- HOTKEY BIND
+function Library:_bindHotkey()
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
+            self.menuVisible = not self.menuVisible
+            self.mainFrame.Visible = self.menuVisible
+        end
+    end)
+end
 
-return LIBRARY
+-- PUBLIC: Example usage
+function Library:Example()
+    local mainTab = self:addTab("Principal")
+    local cat = self:addCategory("Principal","Geral")
+    self:addToggle("Principal","Geral",{Name="Exemplo Toggle", Default=false, Callback=function(val) end})
+    self:addSlider("Principal","Geral",{Name="Volume", Min=0, Max=100, Default=50, Callback=function(val) end})
+    self:addDropdown("Principal","Geral",{Name="Modo", Options={"Fácil","Normal","Difícil"}, Callback=function(opt) end})
+    self:addDropdownToggle("Principal","Geral",{Name="Powerups", Options={"Speed","Jump","Invis"}, Callback=function(tbl) end})
+    self:addLabel("Principal","Geral",{Name="Aviso", Text="Bem-vindo ao menu MSHUB UI!"})
+    self:_buildConfigTab()
+end
+
+return setmetatable(Library, {
+    __call = function(_, ...) return Library.new(...) end
+})
+
+--[[
+
+How To Use:
+
+local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/<your-repo>/<your-library>/main/lua_ui_library.lua"))()
+UI:Example()
+
+]]
