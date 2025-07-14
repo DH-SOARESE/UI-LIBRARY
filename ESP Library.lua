@@ -2,138 +2,123 @@ local ESP = {}
 ESP.__index = ESP
 
 ESP.Objects = {}
-ESP.Settings = {
-    EnableTracer = true,
-    EnableBox = true,
-    EnableName = true,
-    EnableDistance = true,
-    Color = Color3.fromRGB(255,255,255),
-    TextSize = 14
-}
+ESP.Color = Color3.fromRGB(255, 255, 255)
+ESP.TextSize = 14
 
--- Adiciona ESP em um objeto específico
+ESP.EnableTracer = true
+ESP.EnableBox = true
+ESP.EnableName = true
+ESP.EnableDistance = true
+
 function ESP:Add(Object, CustomName)
+    local DrawingTracer = Drawing.new("Line")
+    DrawingTracer.Color = self.Color
+    DrawingTracer.Thickness = 1
+    DrawingTracer.Visible = false
+
+    local DrawingBox = Drawing.new("Square")
+    DrawingBox.Color = self.Color
+    DrawingBox.Thickness = 1
+    DrawingBox.Filled = false
+    DrawingBox.Visible = false
+
+    local DrawingName = Drawing.new("Text")
+    DrawingName.Text = CustomName or Object.Name
+    DrawingName.Color = self.Color
+    DrawingName.Size = self.TextSize
+    DrawingName.Center = true
+    DrawingName.Outline = true
+    DrawingName.Visible = false
+
+    local DrawingDistance = Drawing.new("Text")
+    DrawingDistance.Color = self.Color
+    DrawingDistance.Size = self.TextSize
+    DrawingDistance.Center = true
+    DrawingDistance.Outline = true
+    DrawingDistance.Visible = false
+
     table.insert(self.Objects, {
         Object = Object,
-        Name = CustomName or Object.Name
+        Tracer = DrawingTracer,
+        Box = DrawingBox,
+        Name = DrawingName,
+        Distance = DrawingDistance
     })
 end
 
--- Cria tracer, box, textos etc.
-function ESP:DrawAll()
-    -- Drawing API requer exploit (Synapse, etc.)
-    local drawings = {}
-    for _, data in ipairs(self.Objects) do
-        local obj = data.Object
-        if obj and obj:IsA("BasePart") then
-            -- Tracer
-            local tracer
-            if self.Settings.EnableTracer then
-                tracer = Drawing.new("Line")
-                tracer.Color = self.Settings.Color
-                tracer.Thickness = 2
-            end
-
-            -- Box
-            local box
-            if self.Settings.EnableBox then
-                box = Drawing.new("Square")
-                box.Color = self.Settings.Color
-                box.Thickness = 2
-                box.Filled = false
-                box.Size = Vector2.new(20,20)
-            end
-
-            -- Name
-            local nameText
-            if self.Settings.EnableName then
-                nameText = Drawing.new("Text")
-                nameText.Text = data.Name
-                nameText.Color = self.Settings.Color
-                nameText.Size = self.Settings.TextSize
-                nameText.Center = true
-            end
-
-            -- Distance
-            local distanceText
-            if self.Settings.EnableDistance then
-                distanceText = Drawing.new("Text")
-                distanceText.Color = self.Settings.Color
-                distanceText.Size = self.Settings.TextSize
-                distanceText.Center = true
-            end
-
-            table.insert(drawings, {
-                Object = obj,
-                Tracer = tracer,
-                Box = box,
-                NameText = nameText,
-                DistanceText = distanceText
-            })
-        end
-    end
-    return drawings
-end
-
--- Atualiza posições e textos a cada frame
 function ESP:Start()
     local camera = workspace.CurrentCamera
     local player = game.Players.LocalPlayer
-    local char = player.Character or player.CharacterAdded:Wait()
-    local hrp = char:WaitForChild("HumanoidRootPart")
+    local runService = game:GetService("RunService")
 
-    local drawings = self:DrawAll()
-
-    game:GetService("RunService").RenderStepped:Connect(function()
-        for _, d in ipairs(drawings) do
-            local obj = d.Object
+    runService.RenderStepped:Connect(function()
+        for i, v in ipairs(self.Objects) do
+            local obj = v.Object
             if obj and obj.Parent then
-                local screenPos, onScreen = camera:WorldToViewportPoint(obj.Position)
-                if onScreen then
-                    -- Box
-                    if d.Box then
-                        d.Box.Position = Vector2.new(screenPos.X - 10, screenPos.Y - 10)
-                        d.Box.Visible = true
+                local pos, visible = camera:WorldToViewportPoint(obj.Position)
+                if visible then
+                    -- Tracer
+                    if self.EnableTracer then
+                        v.Tracer.From = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
+                        v.Tracer.To = Vector2.new(pos.X, pos.Y)
+                        v.Tracer.Visible = true
+                    else
+                        v.Tracer.Visible = false
                     end
 
-                    -- Tracer
-                    if d.Tracer then
-                        d.Tracer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
-                        d.Tracer.To = Vector2.new(screenPos.X, screenPos.Y)
-                        d.Tracer.Visible = true
+                    -- Box
+                    if self.EnableBox then
+                        v.Box.Position = Vector2.new(pos.X - 10, pos.Y - 10)
+                        v.Box.Size = Vector2.new(20, 20)
+                        v.Box.Visible = true
+                    else
+                        v.Box.Visible = false
                     end
 
                     -- Name
-                    if d.NameText then
-                        d.NameText.Position = Vector2.new(screenPos.X, screenPos.Y - 20)
-                        d.NameText.Visible = true
+                    if self.EnableName then
+                        v.Name.Position = Vector2.new(pos.X, pos.Y - 25)
+                        v.Name.Visible = true
+                    else
+                        v.Name.Visible = false
                     end
 
                     -- Distance
-                    if d.DistanceText and hrp then
-                        local distance = (hrp.Position - obj.Position).Magnitude
-                        d.DistanceText.Text = string.format("%.0f m", distance)
-                        d.DistanceText.Position = Vector2.new(screenPos.X, screenPos.Y)
-                        d.DistanceText.Visible = true
+                    if self.EnableDistance and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        local distance = (player.Character.HumanoidRootPart.Position - obj.Position).Magnitude
+                        v.Distance.Text = string.format("%.0f m", distance)
+                        v.Distance.Position = Vector2.new(pos.X, pos.Y)
+                        v.Distance.Visible = true
+                    else
+                        v.Distance.Visible = false
                     end
                 else
-                    -- Se não estiver na tela, esconde tudo
-                    if d.Box then d.Box.Visible = false end
-                    if d.Tracer then d.Tracer.Visible = false end
-                    if d.NameText then d.NameText.Visible = false end
-                    if d.DistanceText then d.DistanceText.Visible = false end
+                    v.Tracer.Visible = false
+                    v.Box.Visible = false
+                    v.Name.Visible = false
+                    v.Distance.Visible = false
                 end
+            else
+                -- Se objeto não existir mais, remove
+                v.Tracer:Remove()
+                v.Box:Remove()
+                v.Name:Remove()
+                v.Distance:Remove()
+                table.remove(self.Objects, i)
             end
         end
     end)
 end
 
--- Cria novo ESP com configs customizadas
-function ESP.new(Settings)
+function ESP:SetColor(newColor)
+    self.Color = newColor
+end
+
+function ESP.new(settings)
     local self = setmetatable({}, ESP)
-    if Settings then
-        for k,v in pairs(Settings) do
-            self.Settings[k] = v
+    if settings then
+        for k, v in pairs(settings) do
+            self[k] = v
         end
     end
     return self
