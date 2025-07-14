@@ -1481,205 +1481,191 @@ function OrionLib:MakeWindow(WindowConfig)
 					end
 				end)
 			end 
+			function ElementFunction:AddColorpicker(ColorpickerConfig)
+				ColorpickerConfig = ColorpickerConfig or {}
+				ColorpickerConfig.Name = ColorpickerConfig.Name or "Colorpicker"
+				ColorpickerConfig.Default = ColorpickerConfig.Default or Color3.fromRGB(255,255,255)
+				ColorpickerConfig.Callback = ColorpickerConfig.Callback or function() end
+				ColorpickerConfig.Flag = ColorpickerConfig.Flag or nil
+				ColorpickerConfig.Save = ColorpickerConfig.Save or false
 
-					function ElementFunction:AddColorpicker(ColorpickerConfig)
-    ColorpickerConfig = ColorpickerConfig or {}
-    ColorpickerConfig.Name = ColorpickerConfig.Name or "Colorpicker"
-    ColorpickerConfig.Default = ColorpickerConfig.Default or Color3.fromRGB(255,255,255)
-    ColorpickerConfig.Callback = ColorpickerConfig.Callback or function() end
-    ColorpickerConfig.Flag = ColorpickerConfig.Flag or nil
-    ColorpickerConfig.Save = ColorpickerConfig.Save or false
+				local ColorH, ColorS, ColorV = 1, 1, 1
+				local Colorpicker = {Value = ColorpickerConfig.Default, Toggled = false, Type = "Colorpicker", Save = ColorpickerConfig.Save}
+				local ColorInputConnection, HueInputConnection -- Keep track of these connections
 
-    local ColorH, ColorS, ColorV = 1, 1, 1  
-    local Colorpicker = {Value = ColorpickerConfig.Default, Toggled = false, Type = "Colorpicker", Save = ColorpickerConfig.Save}  
-    local ColorInputConnection, HueInputConnection -- Keep track of these connections  
+				local ColorSelection = Create("ImageLabel", {
+					Size = UDim2.new(0, 18, 0, 18),
+					Position = UDim2.new(select(3, Color3.toHSV(Colorpicker.Value))),
+					ScaleType = Enum.ScaleType.Fit,
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					BackgroundTransparency = 1,
+					Image = "http://www.roblox.com/asset/?id=4805639000"
+				})
 
-    local ColorSelection = Create("ImageLabel", {  
-        Size = UDim2.new(0, 18, 0, 18),  
-        Position = UDim2.new(select(3, Color3.toHSV(Colorpicker.Value))),  
-        ScaleType = Enum.ScaleType.Fit,  
-        AnchorPoint = Vector2.new(0.5, 0.5),  
-        BackgroundTransparency = 1,  
-        Image = "http://www.roblox.com/asset/?id=4805639000"  
-    })  
+				local HueSelection = Create("ImageLabel", {
+					Size = UDim2.new(0, 18, 0, 18),
+					Position = UDim2.new(0.5, 0, 1 - select(1, Color3.toHSV(Colorpicker.Value))),
+					ScaleType = Enum.ScaleType.Fit,
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					BackgroundTransparency = 1,
+					Image = "http://www.roblox.com/asset/?id=4805639000"
+				})
 
-    local HueSelection = Create("ImageLabel", {  
-        Size = UDim2.new(0, 18, 0, 18),  
-        Position = UDim2.new(0.5, 0, 1 - select(1, Color3.toHSV(Colorpicker.Value))),  
-        ScaleType = Enum.ScaleType.Fit,  
-        AnchorPoint = Vector2.new(0.5, 0.5),  
-        BackgroundTransparency = 1,  
-        Image = "http://www.roblox.com/asset/?id=4805639000"  
-    })  
+				local Color = Create("ImageLabel", {
+					Size = UDim2.new(1, -25, 1, 0),
+					Visible = false,
+					Image = "rbxassetid://4155801252"
+				}, {
+					Create("UICorner", {CornerRadius = UDim.new(0, 5)}),
+					ColorSelection
+				})
 
-    local Color = Create("ImageLabel", {  
-        Size = UDim2.new(1, -25, 1, 0),  
-        Visible = false,  
-        Image = "rbxassetid://4155801252"  
-    }, {  
-        Create("UICorner", {CornerRadius = UDim.new(0, 5)}),  
-        ColorSelection  
-    })  
+				local Hue = Create("Frame", {
+					Size = UDim2.new(0, 20, 1, 0),
+					Position = UDim2.new(1, -20, 0, 0),
+					Visible = false
+				}, {
+					Create("UIGradient", {Rotation = 270, Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 4)), ColorSequenceKeypoint.new(0.20, Color3.fromRGB(234, 255, 0)), ColorSequenceKeypoint.new(0.40, Color3.fromRGB(21, 255, 0)), ColorSequenceKeypoint.new(0.60, Color3.fromRGB(0, 255, 255)), ColorSequenceKeypoint.new(0.80, Color3.fromRGB(0, 17, 255)), ColorSequenceKeypoint.new(0.90, Color3.fromRGB(255, 0, 251)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 4))},}),
+					Create("UICorner", {CornerRadius = UDim.new(0, 5)}),
+					HueSelection
+				})
 
-    local Hue = Create("Frame", {  
-        Size = UDim2.new(0, 20, 1, 0),  
-        Position = UDim2.new(1, -20, 0, 0),  
-        Visible = false  
-    }, {  
-        Create("UIGradient", {Rotation = 270, Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 4)), ColorSequenceKeypoint.new(0.20, Color3.fromRGB(234, 255, 0)), ColorSequenceKeypoint.new(0.40, Color3.fromRGB(21, 255, 0)), ColorSequenceKeypoint.new(0.60, Color3.fromRGB(0, 255, 255)), ColorSequenceKeypoint.new(0.80, Color3.fromRGB(0, 17, 255)), ColorSequenceKeypoint.new(0.90, Color3.fromRGB(255, 0, 251)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 4))},}),  
-        Create("UICorner", {CornerRadius = UDim.new(0, 5)}),  
-        HueSelection  
-    })  
+				local ColorpickerContainer = Create("Frame", {
+					Position = UDim2.new(0, 0, 0, 32),
+					Size = UDim2.new(1, 0, 1, -32),
+					BackgroundTransparency = 1,
+					ClipsDescendants = true
+				}, {
+					Hue,
+					Color,
+					Create("UIPadding", {
+						PaddingLeft = UDim.new(0, 35),
+						PaddingRight = UDim.new(0, 35),
+						PaddingBottom = UDim.new(0, 10),
+						PaddingTop = UDim.new(0, 17)
+					})
+				})
 
-    local ColorpickerContainer = Create("Frame", {  
-        Position = UDim2.new(0, 0, 0, 32),  
-        Size = UDim2.new(1, 0, 1, -32),  
-        BackgroundTransparency = 1,  
-        ClipsDescendants = true  
-    }, {  
-        Hue,  
-        Color,  
-        Create("UIPadding", {  
-            PaddingLeft = UDim.new(0, 35),  
-            PaddingRight = UDim.new(0, 35),  
-            PaddingBottom = UDim.new(0, 10),  
-            PaddingTop = UDim.new(0, 17)  
-        })  
-    })  
+				local Click = SetProps(MakeElement("Button"), {
+					Size = UDim2.new(1, 0, 1, 0)
+				})
 
-    local Click = SetProps(MakeElement("Button"), {  
-        Size = UDim2.new(1, 0, 1, 0)  
-    })  
+				local ColorpickerBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
+					Size = UDim2.new(0, 24, 0, 24),
+					Position = UDim2.new(1, -12, 0.5, 0),
+					AnchorPoint = Vector2.new(1, 0.5)
+				}), {
+					AddThemeObject(MakeElement("Stroke"), "Stroke")
+				}), "Main")
 
-    local ColorpickerBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {  
-        Size = UDim2.new(0, 24, 0, 24),  
-        Position = UDim2.new(1, -12, 0.5, 0),  
-        AnchorPoint = Vector2.new(1, 0.5)  
-    }), {  
-        AddThemeObject(MakeElement("Stroke"), "Stroke")  
-    }), "Main")  
+				local ColorpickerFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+					Size = UDim2.new(1, 0, 0, 38),
+					Parent = ItemParent
+				}), {
+					SetProps(SetChildren(MakeElement("TFrame"), {
+						AddThemeObject(SetProps(MakeElement("Label", ColorpickerConfig.Name, 15), {
+							Size = UDim2.new(1, -12, 1, 0),
+							Position = UDim2.new(0, 12, 0, 0),
+							Font = Enum.Font.GothamBold,
+							Name = "Content"
+						}), "Text"),
+						ColorpickerBox,
+						Click,
+						AddThemeObject(SetProps(MakeElement("Frame"), {
+							Size = UDim2.new(1, 0, 0, 1),
+							Position = UDim2.new(0, 0, 1, -1),
+							Name = "Line",
+							Visible = false
+						}), "Stroke"), 
+					}), {
+						Size = UDim2.new(1, 0, 0, 38),
+						ClipsDescendants = true,
+						Name = "F"
+					}),
+					ColorpickerContainer,
+					AddThemeObject(MakeElement("Stroke"), "Stroke"),
+				}), "Second")
 
-    local ColorpickerFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {  
-        Size = UDim2.new(1, 0, 0, 38),  
-        Parent = ItemParent  
-    }), {  
-        SetProps(SetChildren(MakeElement("TFrame"), {  
-            AddThemeObject(SetProps(MakeElement("Label", ColorpickerConfig.Name, 15), {  
-                Size = UDim2.new(1, -12, 1, 0),  
-                Position = UDim2.new(0, 12, 0, 0),  
-                Font = Enum.Font.GothamBold,  
-                Name = "Content"  
-            }), "Text"),  
-            ColorpickerBox,  
-            Click,  
-            AddThemeObject(SetProps(MakeElement("Frame"), {  
-                Size = UDim2.new(1, 0, 0, 1),  
-                Position = UDim2.new(0, 0, 1, -1),  
-                Name = "Line",  
-                Visible = false  
-            }), "Stroke"),   
-        }), {  
-            Size = UDim2.new(1, 0, 0, 38),  
-            ClipsDescendants = true,  
-            Name = "F"  
-        }),  
-        ColorpickerContainer,  
-        AddThemeObject(MakeElement("Stroke"), "Stroke"),  
-    }), "Second")  
+				-- Change MouseButton1Click to InputEnded for touch support
+				AddConnection(Click.InputEnded, function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						Colorpicker.Toggled = not Colorpicker.Toggled
+						TweenService:Create(ColorpickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = Colorpicker.Toggled and UDim2.new(1, 0, 0, 148) or UDim2.new(1, 0, 0, 38)}):Play()
+						Color.Visible = Colorpicker.Toggled
+						Hue.Visible = Colorpicker.Toggled
+						ColorpickerFrame.F.Line.Visible = Colorpicker.Toggled
+					end
+				end)
 
-    -- Modificação aqui: Usar InputBegan e InputEnded para clique/toque
-    AddConnection(Click.InputBegan, function(input)  
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then  
-            Colorpicker.Toggled = not Colorpicker.Toggled  
-            TweenService:Create(ColorpickerFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = Colorpicker.Toggled and UDim2.new(1, 0, 0, 148) or UDim2.new(1, 0, 0, 38)}):Play()  
-            Color.Visible = Colorpicker.Toggled  
-            Hue.Visible = Colorpicker.Toggled  
-            ColorpickerFrame.F.Line.Visible = Colorpicker.Toggled  
-        end  
-    end)  
+				local function UpdateColorPicker(position, targetFrame)
+					local relativePos = position - targetFrame.AbsolutePosition
+					local clampedX = math.clamp(relativePos.X, 0, targetFrame.AbsoluteSize.X)
+					local clampedY = math.clamp(relativePos.Y, 0, targetFrame.AbsoluteSize.Y)
 
-    local function UpdateColorPicker(position, targetFrame)  
-        local relativePos = position - targetFrame.AbsolutePosition  
-        local clampedX = math.clamp(relativePos.X, 0, targetFrame.AbsoluteSize.X)  
-        local clampedY = math.clamp(relativePos.Y, 0, targetFrame.AbsoluteSize.Y)  
-
-        if targetFrame == Color then  
-            ColorSelection.Position = UDim2.new(clampedX / targetFrame.AbsoluteSize.X, 0, clampedY / targetFrame.AbsoluteSize.Y, 0)  
-            ColorS = clampedX / targetFrame.AbsoluteSize.X  
-            ColorV = 1 - (clampedY / targetFrame.AbsoluteSize.Y)  
-        elseif targetFrame == Hue then  
-            HueSelection.Position = UDim2.new(0.5, 0, clampedY / targetFrame.AbsoluteSize.Y, 0)  
-            ColorH = 1 - (clampedY / targetFrame.AbsoluteSize.Y)  
-        end  
-          
-        ColorpickerBox.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)  
-        Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)  
-        Colorpicker:Set(ColorpickerBox.BackgroundColor3)  
-        ColorpickerConfig.Callback(ColorpickerBox.BackgroundColor3)  
-        SaveCfg(game.GameId)  
-    end  
-
-    local function startDraggingColor(inputObject, targetFrame)  
-        if inputObject.UserInputType == Enum.UserInputType.MouseButton1 or inputObject.UserInputType == Enum.UserInputType.Touch then  
-            -- Desconectar conexões anteriores para evitar múltiplos listeners
-            if ColorInputConnection then ColorInputConnection:Disconnect() end
-            if HueInputConnection then HueInputConnection:Disconnect() end
-
-            local currentConnection
-            currentConnection = AddConnection(UserInputService.InputChanged, function(input)  
-                if input == inputObject then  
-                    UpdateColorPicker(input.Position, targetFrame)  
-                end  
-            end)  
-
-            -- Armazenar a conexão apropriada
-            if targetFrame == Color then
-                ColorInputConnection = currentConnection
-            elseif targetFrame == Hue then
-                HueInputConnection = currentConnection
-            end
-
-            AddConnection(UserInputService.InputEnded, function(input)  
-                if input == inputObject then  
-                    if targetFrame == Color and ColorInputConnection then ColorInputConnection:Disconnect() ColorInputConnection = nil end
-                    if targetFrame == Hue and HueInputConnection then HueInputConnection:Disconnect() HueInputConnection = nil end
-                end  
-            end)  
-            
-            -- Atualização inicial quando o arrasto começa
-            UpdateColorPicker(inputObject.Position, targetFrame)  
-        end  
-    end  
-
-    -- Certifique-se de que Color e Hue respondam a InputBegan
-    AddConnection(Color.InputBegan, function(input)  
-        startDraggingColor(input, Color)  
-    end)  
-
-    AddConnection(Hue.InputBegan, function(input)  
-        startDraggingColor(input, Hue)  
-    end)  
-
-    function Colorpicker:Set(Value)  
-        Colorpicker.Value = Value  
-        ColorH, ColorS, ColorV = Color3.toHSV(Colorpicker.Value)  
-          
-        ColorpickerBox.BackgroundColor3 = Colorpicker.Value  
-        Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)  
-          
-        ColorSelection.Position = UDim2.new(ColorS, 0, 1 - ColorV, 0)  
-        HueSelection.Position = UDim2.new(0.5, 0, 1 - ColorH, 0)  
-          
-        ColorpickerConfig.Callback(Colorpicker.Value)  
-    end  
-
-    Colorpicker:Set(Colorpicker.Value) -- Set initial color and update UI elements  
-    if ColorpickerConfig.Flag then				  
-        OrionLib.Flags[ColorpickerConfig.Flag] = Colorpicker  
-    end  
-    return Colorpicker  
-end   		 
+					if targetFrame == Color then
+						ColorSelection.Position = UDim2.new(clampedX / targetFrame.AbsoluteSize.X, 0, clampedY / targetFrame.AbsoluteSize.Y, 0)
+						ColorS = clampedX / targetFrame.AbsoluteSize.X
+						ColorV = 1 - (clampedY / targetFrame.AbsoluteSize.Y)
+					elseif targetFrame == Hue then
+						HueSelection.Position = UDim2.new(0.5, 0, clampedY / targetFrame.AbsoluteSize.Y, 0)
+						ColorH = 1 - (clampedY / targetFrame.AbsoluteSize.Y)
+					end
 					
+					ColorpickerBox.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)
+					Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
+					Colorpicker:Set(ColorpickerBox.BackgroundColor3)
+					ColorpickerConfig.Callback(ColorpickerBox.BackgroundColor3)
+					SaveCfg(game.GameId)
+				end
+
+				local function startDraggingColor(inputObject, targetFrame)
+					if inputObject.UserInputType == Enum.UserInputType.MouseButton1 or inputObject.UserInputType == Enum.UserInputType.Touch then
+						local connectionRef = nil
+						connectionRef = AddConnection(UserInputService.InputChanged, function(input)
+							if input == inputObject then
+								UpdateColorPicker(input.Position, targetFrame)
+							end
+						end)
+						AddConnection(UserInputService.InputEnded, function(input)
+							if input == inputObject then
+								if connectionRef then connectionRef:Disconnect() end
+							end
+						end)
+						-- Initial update
+						UpdateColorPicker(inputObject.Position, targetFrame)
+					end
+				end
+
+				AddConnection(Color.InputBegan, function(input)
+					startDraggingColor(input, Color)
+				end)
+
+				AddConnection(Hue.InputBegan, function(input)
+					startDraggingColor(input, Hue)
+				end)
+
+				function Colorpicker:Set(Value)
+					Colorpicker.Value = Value
+					ColorH, ColorS, ColorV = Color3.toHSV(Colorpicker.Value)
+					
+					ColorpickerBox.BackgroundColor3 = Colorpicker.Value
+					Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
+					
+					ColorSelection.Position = UDim2.new(ColorS, 0, 1 - ColorV, 0)
+					HueSelection.Position = UDim2.new(0.5, 0, 1 - ColorH, 0)
+					
+					ColorpickerConfig.Callback(Colorpicker.Value)
+				end
+
+				Colorpicker:Set(Colorpicker.Value) -- Set initial color and update UI elements
+				if ColorpickerConfig.Flag then				
+					OrionLib.Flags[ColorpickerConfig.Flag] = Colorpicker
+				end
+				return Colorpicker
+			end  
+			return ElementFunction   
+		end	
+
 		local ElementFunction = {}
 
 		function ElementFunction:AddSection(SectionConfig)
