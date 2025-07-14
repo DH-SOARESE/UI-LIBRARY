@@ -1,27 +1,12 @@
---[[ 
-  Biblioteca de UI aprimorada para Roblox 
+--[[
+  Biblioteca de UI aprimorada para Roblox
   - Expansão do menu mantém tamanho anterior
   - Tela de loading exibida antes do menu, e só some após carregar configs
   - Opacidade aplicada ao ScrollView do menu
   - Salvamento e recuperação de todos controles (toggles, sliders, DropdownButtonOnOff, DropdownSelect, etc)
   - Loading animado, centralizado, camada mais alta, tempo mínimo 5s, logo e círculo animado!
+  - Sistema de Notificações com título, descrição, imagem de aviso, botão de fechar e animações.
 --]]
-
-local Library = {}
-
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
-
-local FONTS = {
-    ["Gotham"] = Enum.Font.Gotham,
-    ["GothamBold"] = Enum.Font.GothamBold,
-    ["GothamSemibold"] = Enum.Font.GothamSemibold,
-    ["Arial"] = Enum.Font.Arial,
-    ["SourceSans"] = Enum.Font.SourceSans,
-    ["Roboto"] = Enum.Font.Roboto,
-}
 
 local Library = {}
 
@@ -279,6 +264,115 @@ local function loadConfig(window, controls, windowName, labelRefs)
         window:ApplyTheme(labelRefs)
     end
     setMenuOpacity(window, theme.Opacity)
+end
+
+-- Notification System
+local NotificationQueue = {}
+local NotificationDisplaying = false
+local NotificationFrame = nil
+local NotificationPosition = UDim2.new(1, -220, 0, 20) -- Top right, will stack downwards
+local NotificationSpacing = 10
+local NotificationDuration = 5 -- seconds
+
+local function showNextNotification()
+    if #NotificationQueue > 0 and not NotificationDisplaying then
+        NotificationDisplaying = true
+        local notification = table.remove(NotificationQueue, 1) -- Get the next notification
+
+        if NotificationFrame and NotificationFrame.Parent then -- Destroy previous notification if it still exists
+            NotificationFrame:Destroy()
+        end
+
+        NotificationFrame = Instance.new("Frame")
+        NotificationFrame.Size = UDim2.new(0, 200, 0, 70)
+        NotificationFrame.Position = NotificationPosition + UDim2.new(0,0,0, -80) -- Start slightly above for slide-down animation
+        NotificationFrame.AnchorPoint = Vector2.new(1, 0)
+        NotificationFrame.BackgroundColor3 = theme.TabBackground
+        NotificationFrame.BackgroundTransparency = 0
+        NotificationFrame.BorderSizePixel = 0
+        NotificationFrame.Parent = CoreGui
+        NotificationFrame.ZIndex = 100 -- Ensure it's on top
+
+        createCorner(NotificationFrame, theme.SmallCornerRadius)
+        local stroke = Instance.new("UIStroke", NotificationFrame)
+        stroke.Color = theme.Accent
+        stroke.Thickness = 1
+
+        -- Warning Image (left side)
+        local warningImage = Instance.new("ImageLabel", NotificationFrame)
+        warningImage.Image = "rbxassetid://6034177421" -- Generic warning icon (replace with your desired asset ID)
+        warningImage.BackgroundTransparency = 1
+        warningImage.Size = UDim2.new(0, 32, 0, 32)
+        warningImage.Position = UDim2.new(0, 8, 0.5, -16)
+        warningImage.ImageColor3 = theme.Warning
+
+        -- Notification Title
+        local titleLabel = createTextLabel(NotificationFrame, notification.Title, 16, theme.Text, FONTS[theme.Font] or Enum.Font.GothamBold, Enum.TextXAlignment.Left)
+        titleLabel.Size = UDim2.new(1, -60, 0, 20)
+        titleLabel.Position = UDim2.new(0, 48, 0, 8)
+        titleLabel.TextWrapped = true
+
+        -- Notification Description
+        local descLabel = createTextLabel(NotificationFrame, notification.Description, 14, theme.LabelText, FONTS[theme.Font] or Enum.Font.Gotham, Enum.TextXAlignment.Left)
+        descLabel.Size = UDim2.new(1, -60, 0, 30)
+        descLabel.Position = UDim2.new(0, 48, 0, 28)
+        descLabel.TextWrapped = true
+
+        -- Close Button (X on right)
+        local closeButton = createTextButton(NotificationFrame, "X", nil, Color3.fromRGB(255, 50, 50), Color3.new(1,1,1), Enum.Font.SourceSansBold, 16)
+        closeButton.Size = UDim2.new(0, 20, 0, 20)
+        closeButton.Position = UDim2.new(1, -28, 0, 8)
+        createCorner(closeButton, UDim.new(0, 5))
+        closeButton.BackgroundTransparency = 0
+
+        closeButton.MouseButton1Click:Connect(function()
+            TweenService:Create(NotificationFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = NotificationPosition + UDim2.new(0,0,0, -80),
+                BackgroundTransparency = 1,
+                LayoutTransparency = 1 -- To fade out contents
+            }):Play()
+            task.delay(0.2, function()
+                if NotificationFrame and NotificationFrame.Parent then
+                    NotificationFrame:Destroy()
+                end
+                NotificationDisplaying = false
+                showNextNotification()
+            end)
+        end)
+
+        -- Slide-down animation
+        TweenService:Create(NotificationFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Position = NotificationPosition
+        }):Play()
+
+        -- Auto-close after duration
+        task.delay(NotificationDuration, function()
+            if NotificationFrame and NotificationFrame.Parent then
+                TweenService:Create(NotificationFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Position = NotificationPosition + UDim2.new(0,0,0, -80),
+                    BackgroundTransparency = 1,
+                    LayoutTransparency = 1
+                }):Play()
+                task.delay(0.2, function()
+                    if NotificationFrame and NotificationFrame.Parent then
+                        NotificationFrame:Destroy()
+                    end
+                    NotificationDisplaying = false
+                    showNextNotification()
+                end)
+            end
+        end)
+    end
+end
+
+function Library:Notify(title, description, duration)
+    local notification = {
+        Title = title,
+        Description = description,
+        Duration = duration or NotificationDuration
+    }
+    table.insert(NotificationQueue, notification)
+    showNextNotification() -- Attempt to show immediately
 end
 
 function Library:CreateWindow(name)
