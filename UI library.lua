@@ -94,13 +94,15 @@ task.spawn(function()
 	end
 end)
 
+local isMenuDraggable = true -- Variável para controlar se o menu pode ser arrastado
+
 local function AddDraggingFunctionality(DragPoint, Main)
 	pcall(function()
 		local Dragging, DragInput, InitialMousePos, InitialFramePos = false
 		local CurrentInputConnection, InputChangedConnection
 
 		local function onInputBegan(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			if isMenuDraggable and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 				Dragging = true
 				InitialMousePos = input.Position
 				InitialFramePos = Main.Position
@@ -116,7 +118,7 @@ local function AddDraggingFunctionality(DragPoint, Main)
 		end
 
 		local function onInputChanged(input)
-			if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			if isMenuDraggable and Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 				local Delta = input.Position - InitialMousePos
 				TweenService:Create(Main, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position  = UDim2.new(InitialFramePos.X.Scale,InitialFramePos.X.Offset + Delta.X, InitialFramePos.Y.Scale, InitialFramePos.Y.Offset + Delta.Y)}):Play()
 			end
@@ -1663,6 +1665,97 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 				return Colorpicker
 			end  
+			
+			-- NEW BUTTONS ADDED HERE
+			function ElementFunction:AddButtonOnOff(Config)
+				Config = Config or {}
+				Config.Name = Config.Name or "ButtonOnOff"
+				Config.HideShowCallback = Config.HideShowCallback or function(isHidden) end
+				Config.LockedUnlockedCallback = Config.LockedUnlockedCallback or function(isLocked) end
+
+				local ButtonOnOffFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+					Size = UDim2.new(1, 0, 0, 38),
+					Parent = ItemParent
+				}), {
+					AddThemeObject(MakeElement("Stroke"), "Stroke"),
+					MakeElement("List", 0, 4), -- Adiciona um layout de lista para os botões
+					MakeElement("Padding", 4, 4, 4, 4) -- Adiciona um padding
+				}), "Second")
+
+				-- Botão Hide/Show
+				local hideShowButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
+					Size = UDim2.new(0.5, -2, 1, 0),
+					BackgroundTransparency = 0,
+					BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+					Text = "<b>ESCONDER</b>",
+					TextColor3 = Color3.fromRGB(255, 255, 255),
+					Font = Enum.Font.GothamBold,
+					TextSize = 14,
+					BorderSizePixel = 1,
+					BorderColor3 = Color3.fromRGB(0, 120, 255), -- Borda azul
+					Name = "HideShowButton"
+				}), {
+					MakeElement("Corner", 0, 5),
+					MakeElement("Stroke", Color3.fromRGB(0, 120, 255), 1) -- Borda azul para o traço
+				}), "Second")
+				hideShowButton.Parent = ButtonOnOffFrame
+
+				local isHidden = false
+				AddConnection(hideShowButton.InputEnded, function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						isHidden = not isHidden
+						MainWindow.Visible = not isHidden
+						hideShowButton.Text = isHidden and "<b>MOSTRAR</b>" or "<b>ESCONDER</b>"
+						Config.HideShowCallback(isHidden)
+						OrionLib:MakeNotification({
+							Name = "Visibilidade do Menu",
+							Content = isHidden and "Menu escondido. Use RightShift para mostrar." or "Menu visível.",
+							Time = 3
+						})
+					end
+				end)
+
+				-- Botão Unlocked/Locked
+				local unlockedLockedButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
+					Size = UDim2.new(0.5, -2, 1, 0),
+					Position = UDim2.new(0.5, 2, 0, 0), -- Ajusta a posição para o lado direito
+					BackgroundTransparency = 0,
+					BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+					Text = "<b>DESBLOQUEADO</b>",
+					TextColor3 = Color3.fromRGB(255, 255, 255),
+					Font = Enum.Font.GothamBold,
+					TextSize = 14,
+					BorderSizePixel = 1,
+					BorderColor3 = Color3.fromRGB(0, 120, 255), -- Borda azul
+					Name = "UnlockedLockedButton"
+				}), {
+					MakeElement("Corner", 0, 5),
+					MakeElement("Stroke", Color3.fromRGB(0, 120, 255), 1) -- Borda azul para o traço
+				}), "Second")
+				unlockedLockedButton.Parent = ButtonOnOffFrame
+
+				local isLocked = false
+				AddConnection(unlockedLockedButton.InputEnded, function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						isLocked = not isLocked
+						isMenuDraggable = not isLocked -- Atualiza a variável global de arraste
+						unlockedLockedButton.Text = isLocked and "<b>BLOQUEADO</b>" or "<b>DESBLOQUEADO</b>"
+						Config.LockedUnlockedCallback(isLocked)
+						OrionLib:MakeNotification({
+							Name = "Arrastar Menu",
+							Content = isLocked and "Arrastar menu desabilitado." or "Arrastar menu habilitado.",
+							Time = 3
+						})
+					end
+				})
+
+				return {
+					HideShowButton = hideShowButton,
+					UnlockedLockedButton = unlockedLockedButton
+				}
+			end
+			-- END NEW BUTTONS ADDED HERE
+
 			return ElementFunction   
 		end	
 
