@@ -12,11 +12,11 @@ screenGui.IgnoreGuiInset = true
 screenGui.ResetOnSpawn = false
 screenGui.Name = "UILibrary"
 
--- Borda azul externa + branca interna + fundo escuro
+-- Menu com borda azul e borda branca interna
 local borderOuter = Instance.new("Frame", screenGui)
 borderOuter.Size = UDim2.new(0, 500, 0, 400)
 borderOuter.Position = UDim2.new(0.3, 0, 0.2, 0)
-borderOuter.BackgroundColor3 = Color3.fromRGB(0, 85, 170)
+borderOuter.BackgroundColor3 = Color3.fromRGB(50, 120, 220) -- azul agradável
 borderOuter.BorderSizePixel = 0
 borderOuter.Name = "Menu"
 
@@ -33,7 +33,7 @@ container.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 container.BorderSizePixel = 0
 container.ClipsDescendants = true
 
--- Área de abas
+-- Área de abas no topo
 local tabArea = Instance.new("Frame", container)
 tabArea.Size = UDim2.new(1, 0, 0, 40)
 tabArea.Position = UDim2.new(0, 0, 0, 0)
@@ -55,145 +55,170 @@ rightScroll.Parent = container
 rightScroll.Position = UDim2.new(0.5, 0, 0, 42)
 rightScroll.Name = "Right"
 
--- Função de atualização de Canvas
-local function updateCanvas(scroll)
-	scroll.CanvasSize = UDim2.new(0, 0, 0, scroll.UIListLayout.AbsoluteContentSize.Y + 10)
-end
-
--- ListLayouts
+-- UIListLayouts para espaçamento
 for _, scroll in pairs({leftScroll, rightScroll}) do
 	local list = Instance.new("UIListLayout", scroll)
-	list.Padding = UDim.new(0, 6)
+	list.Padding = UDim.new(0, 12) -- espaçamento aumentado
 	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	scroll.UIListLayout = list
 
 	list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		updateCanvas(scroll)
+		scroll.CanvasSize = UDim2.new(0, 0, 0, list.AbsoluteContentSize.Y + 15)
 	end)
 end
 
--- Feature Generator
-function library:AddFeature(side, name, callback, type, options)
+-- Função para criar botões laterais centralizados verticalmente à esquerda
+local function createSideButton(text, callback, index)
+	local btn = Instance.new("TextButton", screenGui)
+	btn.Size = UDim2.new(0, 140, 0, 36)
+	btn.Position = UDim2.new(0, 10, 0.5, (index - 1) * 50 - 25)
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.BorderColor3 = Color3.fromRGB(50, 120, 220)
+	btn.BorderSizePixel = 2
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 16
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.Text = text
+	btn.AutoButtonColor = true
+
+	btn.MouseButton1Click:Connect(callback)
+
+	return btn
+end
+
+local toggleMenuBtn = createSideButton("📂 Abrir/Fechar Menu", function()
+	menuOpen = not menuOpen
+	borderOuter.Visible = menuOpen
+end, 1)
+
+local toggleDragBtn = createSideButton("✋ Drag ON/OFF", function()
+	dragEnabled = not dragEnabled
+	toggleDragBtn.Text = dragEnabled and "✋ Drag ON" or "✋ Drag OFF"
+end, 2)
+
+-- Função para tornar o menu arrastável (via mouse ou toque)
+local function makeDraggable(frame)
+	local draggingInput, dragStartPos, startPos
+	frame.InputBegan:Connect(function(input)
+		if not dragEnabled then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStartPos = input.Position
+			startPos = frame.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	UIS.InputChanged:Connect(function(input)
+		if dragging and (input == draggingInput or input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStartPos
+			frame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+makeDraggable(borderOuter)
+
+-- Função para criar features estilizados
+function library:AddFeature(side, name, callback, ftype, options)
 	local parent = (side == "Right" and rightScroll) or leftScroll
 
-	local featureFrame = Instance.new("Frame")
-	featureFrame.Size = UDim2.new(1, -10, 0, 40)
-	featureFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	featureFrame.BorderColor3 = Color3.fromRGB(60, 60, 60)
-	featureFrame.BorderSizePixel = 1
-	featureFrame.Name = name
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(1, -20, 0, 44)
+	frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	frame.BorderSizePixel = 1
+	frame.BorderColor3 = Color3.fromRGB(75, 110, 180)
+	frame.Name = name
+	frame.ClipsDescendants = true
 
-	local label = Instance.new("TextLabel", featureFrame)
-	label.Size = UDim2.new(1, -10, 1, 0)
-	label.Position = UDim2.new(0, 10, 0, 0)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.SourceSansBold
-	label.TextSize = 14
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.Text = name
-
-	if type == "checkbox" then
-		local box = Instance.new("TextButton", featureFrame)
-		box.Size = UDim2.new(0, 24, 0, 24)
-		box.Position = UDim2.new(0, 6, 0.5, -12)
-		box.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		box.BorderColor3 = Color3.fromRGB(255, 255, 255)
-		box.Text = ""
+	if ftype == "checkbox" then
+		local box = Instance.new("TextButton", frame)
+		box.Size = UDim2.new(0, 28, 0, 28)
+		box.Position = UDim2.new(0, 6, 0.5, -14)
+		box.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+		box.BorderSizePixel = 1
+		box.BorderColor3 = Color3.fromRGB(120, 120, 120)
 		box.AutoButtonColor = false
+		box.Text = ""
 
-		local state = false
+		local label = Instance.new("TextLabel", frame)
+		label.Size = UDim2.new(1, -40, 1, 0)
+		label.Position = UDim2.new(0, 40, 0, 0)
+		label.BackgroundTransparency = 1
+		label.Text = name
+		label.Font = Enum.Font.SourceSansSemibold
+		label.TextSize = 16
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+
+		local toggled = false
 		box.MouseButton1Click:Connect(function()
-			state = not state
-			box.BackgroundColor3 = state and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(50, 50, 50)
-			callback(state)
+			toggled = not toggled
+			box.BackgroundColor3 = toggled and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
+			callback(toggled)
 		end)
-	elseif type == "slider" then
-		local button = Instance.new("TextButton", featureFrame)
-		button.Size = UDim2.new(1, -20, 0, 30)
-		button.Position = UDim2.new(0, 10, 0, 5)
-		button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-		button.BorderColor3 = Color3.fromRGB(100, 100, 100)
-		button.TextColor3 = Color3.new(1, 1, 1)
-		button.Font = Enum.Font.SourceSansBold
-		button.TextSize = 14
 
-		local min, max, value = options.Min or 0, options.Max or 10, options.Default or 5
-		button.Text = name .. ": " .. value
+	elseif ftype == "slider" then
+		local sliderFrame = Instance.new("Frame", frame)
+		sliderFrame.Size = UDim2.new(1, -20, 1, -10)
+		sliderFrame.Position = UDim2.new(0, 10, 0, 5)
+		sliderFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+		sliderFrame.BorderSizePixel = 1
+		sliderFrame.BorderColor3 = Color3.fromRGB(100, 100, 100)
+		sliderFrame.ClipsDescendants = true
 
-		button.MouseButton1Click:Connect(function()
-			value = value + 1
-			if value > max then value = min end
-			button.Text = name .. ": " .. value
-			callback(value)
+		local label = Instance.new("TextLabel", sliderFrame)
+		label.Size = UDim2.new(1, 0, 1, 0)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.Font = Enum.Font.SourceSansBold
+		label.TextSize = 16
+		label.Text = name .. ": " .. tostring(options and options.Default or 0)
+		label.TextXAlignment = Enum.TextXAlignment.Center
+
+		-- Simples incremento ao clicar (exemplo)
+		local minV = (options and options.Min) or 0
+		local maxV = (options and options.Max) or 100
+		local currentValue = (options and options.Default) or minV
+
+		sliderFrame.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				currentValue = currentValue + 1
+				if currentValue > maxV then
+					currentValue = minV
+				end
+				label.Text = name .. ": " .. currentValue
+				callback(currentValue)
+			end
 		end)
-	else
-		local btn = Instance.new("TextButton", featureFrame)
-		btn.Size = UDim2.new(1, -20, 0, 30)
+
+	elseif ftype == "button" then
+		local btn = Instance.new("TextButton", frame)
+		btn.Size = UDim2.new(1, -20, 1, -10)
 		btn.Position = UDim2.new(0, 10, 0, 5)
-		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+		btn.BorderSizePixel = 1
 		btn.BorderColor3 = Color3.fromRGB(100, 100, 100)
-		btn.Text = name
 		btn.Font = Enum.Font.SourceSansBold
-		btn.TextSize = 14
+		btn.TextSize = 16
 		btn.TextColor3 = Color3.new(1, 1, 1)
+		btn.Text = name
 
 		btn.MouseButton1Click:Connect(function()
 			callback(true)
 		end)
 	end
 
-	featureFrame.Parent = parent
+	frame.Parent = parent
 end
-
--- Dragging
-local function makeDraggable(frame)
-	local dragging, offset
-	frame.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			if dragEnabled then
-				dragging = true
-				offset = input.Position - frame.Position
-			end
-		end
-	end)
-
-	UIS.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
-			frame.Position = UDim2.new(0, input.Position.X - offset.X, 0, input.Position.Y - offset.Y)
-		end
-	end)
-
-	UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
-	end)
-end
-
-makeDraggable(borderOuter)
-
--- Botões (Menu e Drag Toggle)
-local function createSideButton(name, callback, order)
-	local btn = Instance.new("TextButton", screenGui)
-	btn.Size = UDim2.new(0, 140, 0, 36)
-	btn.Position = UDim2.new(0, 10, 0.5, -60 + order * 40)
-	btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	btn.BorderColor3 = Color3.fromRGB(0, 85, 170)
-	btn.Font = Enum.Font.SourceSansBold
-	btn.TextSize = 14
-	btn.TextColor3 = Color3.new(1, 1, 1)
-	btn.Text = name
-	btn.MouseButton1Click:Connect(callback)
-end
-
-createSideButton("📂 Abrir/Fechar Menu", function()
-	menuOpen = not menuOpen
-	borderOuter.Visible = menuOpen
-end, 0)
-
-createSideButton("✋ Drag ON/OFF", function()
-	dragEnabled = not dragEnabled
-end, 1)
 
 return library
