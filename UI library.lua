@@ -94,15 +94,13 @@ task.spawn(function()
 	end
 end)
 
-local isMenuDraggable = true -- Variável para controlar se o menu pode ser arrastado
-
 local function AddDraggingFunctionality(DragPoint, Main)
 	pcall(function()
 		local Dragging, DragInput, InitialMousePos, InitialFramePos = false
 		local CurrentInputConnection, InputChangedConnection
 
 		local function onInputBegan(input)
-			if isMenuDraggable and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				Dragging = true
 				InitialMousePos = input.Position
 				InitialFramePos = Main.Position
@@ -113,12 +111,12 @@ local function AddDraggingFunctionality(DragPoint, Main)
 						if CurrentInputConnection then CurrentInputConnection:Disconnect() end
 						CurrentInputConnection = nil
 					end
-				end)
+				})
 			end
 		end
 
 		local function onInputChanged(input)
-			if isMenuDraggable and Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 				local Delta = input.Position - InitialMousePos
 				TweenService:Create(Main, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position  = UDim2.new(InitialFramePos.X.Scale,InitialFramePos.X.Offset + Delta.X, InitialFramePos.Y.Scale, InitialFramePos.Y.Offset + Delta.Y)}):Play()
 			end
@@ -1274,6 +1272,219 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 				return Dropdown
 			end
+			function ElementFunction:AddDropdownButtonOnOff(DropdownConfig)
+				DropdownConfig = DropdownConfig or {}
+				DropdownConfig.Name = DropdownConfig.Name or "Dropdown Toggles"
+				DropdownConfig.Options = DropdownConfig.Options or {} -- { {Name = "Option1", Default = true, Callback = function(state) end}, ... }
+				DropdownConfig.Color = DropdownConfig.Color or Color3.fromRGB(9, 99, 195)
+				DropdownConfig.Flag = DropdownConfig.Flag or nil
+				DropdownConfig.Save = DropdownConfig.Save or false
+
+				local Dropdown = {
+					Value = {}, -- Stores the state of each toggle (option name -> boolean)
+					Options = DropdownConfig.Options,
+					Toggles = {}, -- Stores references to the created toggle elements
+					Toggled = false,
+					Type = "DropdownButtonOnOff",
+					Save = DropdownConfig.Save
+				}
+				local MaxElements = 5
+
+				-- Initialize values based on defaults
+				for _, option in pairs(Dropdown.Options) do
+					Dropdown.Value[option.Name] = option.Default or false
+				end
+
+				local DropdownList = MakeElement("List", 0, 4) -- Added padding between toggles
+
+				local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(40, 40, 40), 4), {
+					DropdownList,
+					MakeElement("Padding", 4, 4, 4, 4) -- Padding inside the scroll frame
+				}), {
+					Parent = ItemParent,
+					Position = UDim2.new(0, 0, 0, 38),
+					Size = UDim2.new(1, 0, 1, -38),
+					ClipsDescendants = true,
+					Visible = false -- Initially hidden
+				}), "Divider")
+
+				local Click = SetProps(MakeElement("Button"), {
+					Size = UDim2.new(1, 0, 1, 0)
+				})
+
+				local DropdownFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+					Size = UDim2.new(1, 0, 0, 38),
+					Parent = ItemParent,
+					ClipsDescendants = true
+				}), {
+					DropdownContainer,
+					SetProps(SetChildren(MakeElement("TFrame"), {
+						AddThemeObject(SetProps(MakeElement("Label", DropdownConfig.Name, 15), {
+							Size = UDim2.new(1, -12, 1, 0),
+							Position = UDim2.new(0, 12, 0, 0),
+							Font = Enum.Font.GothamBold,
+							Name = "Content"
+						}), "Text"),
+						AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
+							Size = UDim2.new(0, 20, 0, 20),
+							AnchorPoint = Vector2.new(0, 0.5),
+							Position = UDim2.new(1, -30, 0.5, 0),
+							ImageColor3 = Color3.fromRGB(240, 240, 240),
+							Name = "Ico"
+						}), "TextDark"),
+						AddThemeObject(SetProps(MakeElement("Frame"), {
+							Size = UDim2.new(1, 0, 0, 1),
+							Position = UDim2.new(0, 0, 1, -1),
+							Name = "Line",
+							Visible = false
+						}), "Stroke"), 
+						Click
+					}), {
+						Size = UDim2.new(1, 0, 0, 38),
+						ClipsDescendants = true,
+						Name = "F"
+					}),
+					AddThemeObject(MakeElement("Stroke"), "Stroke"),
+					MakeElement("Corner")
+				}), "Second")
+
+				AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+					DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y + 8) -- Adjust for padding
+				end)  
+
+				local function AddToggleOptions(Options)
+					for _, optionData in pairs(Options) do
+						local toggleName = optionData.Name
+						local toggleDefault = optionData.Default or false
+						local toggleCallback = optionData.Callback or function() end
+
+						local ClickToggle = SetProps(MakeElement("Button"), {
+							Size = UDim2.new(1, 0, 1, 0)
+						})
+
+						local ToggleBox = SetChildren(SetProps(MakeElement("RoundFrame", DropdownConfig.Color, 0, 4), {
+							Size = UDim2.new(0, 24, 0, 24),
+							Position = UDim2.new(1, -24, 0.5, 0),
+							AnchorPoint = Vector2.new(0.5, 0.5)
+						}), {
+							SetProps(MakeElement("Stroke"), {
+								Color = DropdownConfig.Color,
+								Name = "Stroke",
+								Transparency = 0.5
+							}),
+							SetProps(MakeElement("Image", "rbxassetid://3944680095"), {
+								Size = UDim2.new(0, 20, 0, 20),
+								AnchorPoint = Vector2.new(0.5, 0.5),
+								Position = UDim2.new(0.5, 0, 0.5, 0),
+								ImageColor3 = Color3.fromRGB(255, 255, 255),
+								Name = "Ico"
+							}),
+						})
+
+						local OptionToggleFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+							Size = UDim2.new(1, 0, 0, 38),
+							Parent = DropdownContainer
+						}), {
+							AddThemeObject(SetProps(MakeElement("Label", toggleName, 15), {
+								Size = UDim2.new(1, -12, 1, 0),
+								Position = UDim2.new(0, 12, 0, 0),
+								Font = Enum.Font.GothamBold,
+								Name = "Content"
+							}), "Text"),
+							AddThemeObject(MakeElement("Stroke"), "Stroke"),
+							ToggleBox,
+							ClickToggle
+						}), "Second")
+
+						local optionToggle = {Value = toggleDefault}
+
+						local function SetOptionToggleState(Value)
+							optionToggle.Value = Value
+							TweenService:Create(ToggleBox, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = optionToggle.Value and DropdownConfig.Color or OrionLib.Themes.Default.Divider}):Play()
+							TweenService:Create(ToggleBox.Stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Color = optionToggle.Value and DropdownConfig.Color or OrionLib.Themes.Default.Stroke}):Play()
+							TweenService:Create(ToggleBox.Ico, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = optionToggle.Value and 0 or 1, Size = optionToggle.Value and UDim2.new(0, 20, 0, 20) or UDim2.new(0, 8, 0, 8)}):Play()
+							toggleCallback(optionToggle.Value)
+							Dropdown.Value[toggleName] = optionToggle.Value -- Update parent dropdown's value
+							SaveCfg(game.GameId)
+						end
+
+						SetOptionToggleState(toggleDefault)
+
+						AddConnection(ClickToggle.InputBegan, function(input)
+							if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+								TweenService:Create(OptionToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 6, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 6)}):Play()
+							end
+						end)
+
+						AddConnection(ClickToggle.InputEnded, function(input)
+							if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+								TweenService:Create(OptionToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+								SetOptionToggleState(not optionToggle.Value)
+							end
+						end)
+
+						AddConnection(ClickToggle.MouseEnter, function()
+							TweenService:Create(OptionToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
+						end)
+
+						AddConnection(ClickToggle.MouseLeave, function()
+							TweenService:Create(OptionToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
+						end)
+
+						Dropdown.Toggles[toggleName] = optionToggle
+					end
+				end	
+
+				function Dropdown:Refresh(Options, Delete)
+					if Delete then
+						for _,v in pairs(Dropdown.Toggles) do
+							v.Frame:Destroy() -- Assuming the toggle element has a 'Frame' property
+						end    
+						table.clear(Dropdown.Options)
+						table.clear(Dropdown.Toggles)
+						table.clear(Dropdown.Value)
+					end
+					Dropdown.Options = Options
+					for _, option in pairs(Dropdown.Options) do
+						Dropdown.Value[option.Name] = option.Default or false
+					end
+					AddToggleOptions(Dropdown.Options)
+					-- Recalculate size after refreshing options
+					DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"):Emit()
+				end  
+
+				function Dropdown:GetValues()
+					return Dropdown.Value
+				end
+
+				function Dropdown:SetOption(OptionName, State)
+					if Dropdown.Toggles[OptionName] then
+						Dropdown.Toggles[OptionName]:Set(State)
+					end
+				end
+
+				-- Change MouseButton1Click to InputEnded for touch support
+				AddConnection(Click.InputEnded, function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						Dropdown.Toggled = not Dropdown.Toggled
+						DropdownFrame.F.Line.Visible = Dropdown.Toggled
+						TweenService:Create(DropdownFrame.F.Ico,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Rotation = Dropdown.Toggled and 180 or 0}):Play()
+						DropdownContainer.Visible = Dropdown.Toggled
+
+						if #Dropdown.Options > MaxElements then
+							TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = Dropdown.Toggled and UDim2.new(1, 0, 0, 38 + (MaxElements * 38)) or UDim2.new(1, 0, 0, 38)}):Play() -- 38 is height of toggle
+						else
+							TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = Dropdown.Toggled and UDim2.new(1, 0, 0, DropdownList.AbsoluteContentSize.Y + 38 + 8) or UDim2.new(1, 0, 0, 38)}):Play() -- Adjust for padding
+						end
+					end
+				end)
+
+				AddToggleOptions(Dropdown.Options)
+				if DropdownConfig.Flag then				
+					OrionLib.Flags[DropdownConfig.Flag] = Dropdown
+				end
+				return Dropdown
+			end
 			function ElementFunction:AddBind(BindConfig)
 				BindConfig.Name = BindConfig.Name or "Bind"
 				BindConfig.Default = BindConfig.Default or Enum.KeyCode.Unknown
@@ -1665,97 +1876,6 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 				return Colorpicker
 			end  
-			
-			-- NEW BUTTONS ADDED HERE
-			function ElementFunction:AddButtonOnOff(Config)
-				Config = Config or {}
-				Config.Name = Config.Name or "ButtonOnOff"
-				Config.HideShowCallback = Config.HideShowCallback or function(isHidden) end
-				Config.LockedUnlockedCallback = Config.LockedUnlockedCallback or function(isLocked) end
-
-				local ButtonOnOffFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
-					Size = UDim2.new(1, 0, 0, 38),
-					Parent = ItemParent
-				}), {
-					AddThemeObject(MakeElement("Stroke"), "Stroke"),
-					MakeElement("List", 0, 4), -- Adiciona um layout de lista para os botões
-					MakeElement("Padding", 4, 4, 4, 4) -- Adiciona um padding
-				}), "Second")
-
-				-- Botão Hide/Show
-				local hideShowButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
-					Size = UDim2.new(0.5, -2, 1, 0),
-					BackgroundTransparency = 0,
-					BackgroundColor3 = Color3.fromRGB(25, 25, 25),
-					Text = "<b>ESCONDER</b>",
-					TextColor3 = Color3.fromRGB(255, 255, 255),
-					Font = Enum.Font.GothamBold,
-					TextSize = 14,
-					BorderSizePixel = 1,
-					BorderColor3 = Color3.fromRGB(0, 120, 255), -- Borda azul
-					Name = "HideShowButton"
-				}), {
-					MakeElement("Corner", 0, 5),
-					MakeElement("Stroke", Color3.fromRGB(0, 120, 255), 1) -- Borda azul para o traço
-				}), "Second")
-				hideShowButton.Parent = ButtonOnOffFrame
-
-				local isHidden = false
-				AddConnection(hideShowButton.InputEnded, function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						isHidden = not isHidden
-						MainWindow.Visible = not isHidden
-						hideShowButton.Text = isHidden and "<b>MOSTRAR</b>" or "<b>ESCONDER</b>"
-						Config.HideShowCallback(isHidden)
-						OrionLib:MakeNotification({
-							Name = "Visibilidade do Menu",
-							Content = isHidden and "Menu escondido. Use RightShift para mostrar." or "Menu visível.",
-							Time = 3
-						})
-					end
-				end)
-
-				-- Botão Unlocked/Locked
-				local unlockedLockedButton = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
-					Size = UDim2.new(0.5, -2, 1, 0),
-					Position = UDim2.new(0.5, 2, 0, 0), -- Ajusta a posição para o lado direito
-					BackgroundTransparency = 0,
-					BackgroundColor3 = Color3.fromRGB(25, 25, 25),
-					Text = "<b>DESBLOQUEADO</b>",
-					TextColor3 = Color3.fromRGB(255, 255, 255),
-					Font = Enum.Font.GothamBold,
-					TextSize = 14,
-					BorderSizePixel = 1,
-					BorderColor3 = Color3.fromRGB(0, 120, 255), -- Borda azul
-					Name = "UnlockedLockedButton"
-				}), {
-					MakeElement("Corner", 0, 5),
-					MakeElement("Stroke", Color3.fromRGB(0, 120, 255), 1) -- Borda azul para o traço
-				}), "Second")
-				unlockedLockedButton.Parent = ButtonOnOffFrame
-
-				local isLocked = false
-				AddConnection(unlockedLockedButton.InputEnded, function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						isLocked = not isLocked
-						isMenuDraggable = not isLocked -- Atualiza a variável global de arraste
-						unlockedLockedButton.Text = isLocked and "<b>BLOQUEADO</b>" or "<b>DESBLOQUEADO</b>"
-						Config.LockedUnlockedCallback(isLocked)
-						OrionLib:MakeNotification({
-							Name = "Arrastar Menu",
-							Content = isLocked and "Arrastar menu desabilitado." or "Arrastar menu habilitado.",
-							Time = 3
-						})
-					end
-				})
-
-				return {
-					HideShowButton = hideShowButton,
-					UnlockedLockedButton = unlockedLockedButton
-				}
-			end
-			-- END NEW BUTTONS ADDED HERE
-
 			return ElementFunction   
 		end	
 
