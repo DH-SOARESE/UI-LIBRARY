@@ -1,631 +1,434 @@
-local DarkUI = {}
+-- Library: DarkUITabbed
+-- Description: A dark-themed UI library with horizontal tabs, ScrollView, and interactive elements
+-- Optimized for mobile devices and executors like Delta
+-- Version: 1.0
+-- Author: [Your Name]
 
--- Configurações iniciais
-DarkUI.settings = {
-    theme = {
-        background = Color3.fromRGB(30, 30, 30),
-        foreground = Color3.fromRGB(45, 45, 45),
-        accent = Color3.fromRGB(0, 120, 215),
-        text = Color3.fromRGB(255, 255, 255),
-        border = Color3.fromRGB(70, 70, 70)
-    },
-    font = Enum.Font.SourceSansBold,
-    textSize = 14,
-    cornerRadius = UDim.new(0, 6),
-    elementPadding = 10
-}
+local DarkUITabbed = {}
+DarkUITabbed.__index = DarkUITabbed
 
--- Variáveis de estado
-DarkUI.menuVisible = true
-DarkUI.menuLocked = false
-DarkUI.dragStartPos = nil
-DarkUI.menuPosition = nil
+-- Dependencies (assuming a Roblox-like environment or executor with UI support)
+local UserInputService = game:GetService("UserInputService") -- For touch and drag detection
+local TweenService = game:GetService("TweenService") -- For smooth animations
 
--- Função para criar um frame básico
-function DarkUI.createFrame(parent, size, position, bgColor, transparency, name)
-    local frame = Instance.new("Frame")
-    frame.Name = name or "Frame"
-    frame.Size = size or UDim2.new(1, 0, 1, 0)
-    frame.Position = position or UDim2.new(0, 0, 0, 0)
-    frame.BackgroundColor3 = bgColor or DarkUI.settings.theme.foreground
-    frame.BackgroundTransparency = transparency or 0
-    frame.BorderSizePixel = 0
-    frame.Parent = parent
-    return frame
+-- Helper function to create UI instances
+local function create(class, props)
+    local instance = Instance.new(class)
+    for k, v in pairs(props or {}) do
+        instance[k] = v
+    end
+    return instance
 end
 
--- Função para criar texto
-function DarkUI.createText(parent, text, size, position, color, name)
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Name = name or "TextLabel"
-    textLabel.Size = size or UDim2.new(1, 0, 0, 20)
-    textLabel.Position = position or UDim2.new(0, 0, 0, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = text or ""
-    textLabel.TextColor3 = color or DarkUI.settings.theme.text
-    textLabel.TextSize = DarkUI.settings.textSize
-    textLabel.Font = DarkUI.settings.font
-    textLabel.TextXAlignment = Enum.TextXAlignment.Center
-    textLabel.TextYAlignment = Enum.TextYAlignment.Center
-    textLabel.Parent = parent
-    return textLabel
+-- Main UI Library Constructor
+function DarkUITabbed.new()
+    local self = setmetatable({}, DarkUITabbed)
+    
+    -- Main frame (draggable window)
+    self.MainFrame = create("ScreenGui", {
+        Name = "DarkUITabbed",
+        Parent = game.Players.LocalPlayer.PlayerGui,
+        ResetOnSpawn = false
+    })
+    
+    self.Window = create("Frame", {
+        Size = UDim2.new(0, 400, 0, 300),
+        Position = UDim2.new(0.5, -200, 0.5, -150),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30), -- Dark theme
+        BorderSizePixel = 0,
+        Parent = self.MainFrame
+    })
+    
+    -- Add subtle border
+    create("UIStroke", {
+        Color = Color3.fromRGB(50, 50, 50),
+        Thickness = 1,
+        Parent = self.Window
+    })
+    
+    -- Dragging variables
+    self.IsDragging = false
+    self.IsLocked = false
+    self.IsVisible = true
+    
+    -- Tab container (horizontal tabs)
+    self.TabContainer = create("Frame", {
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+        BorderSizePixel = 0,
+        Parent = self.Window
+    })
+    
+    -- ScrollView for content
+    self.ScrollView = create("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, -40),
+        Position = UDim2.new(0, 0, 0, 40),
+        BackgroundTransparency = 1,
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100),
+        CanvasSize = UDim2.new(0, 0, 2, 0), -- Will be updated dynamically
+        Parent = self.Window
+    })
+    
+    -- Layout for ScrollView content
+    self.ScrollLayout = create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 10),
+        Parent = self.ScrollView
+    })
+    
+    -- Tabs storage
+    self.Tabs = {}
+    self.CurrentTab = nil
+    
+    -- Control buttons (Show/Hide and Locked/Unlocked)
+    self.ControlFrame = create("Frame", {
+        Size = UDim2.new(0, 100, 0, 120),
+        Position = UDim2.new(0, 10, 0.5, -60),
+        BackgroundTransparency = 1,
+        Parent = self.MainFrame
+    })
+    
+    self.ShowHideButton = create("TextButton", {
+        Size = UDim2.new(1, 0, 0, 50),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BorderColor3 = Color3.fromRGB(0, 120, 255),
+        BorderSizePixel = 2,
+        Text = "Hide",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        Font = Enum.Font.GothamBold,
+        Parent = self.ControlFrame
+    })
+    
+    self.LockButton = create("TextButton", {
+        Size = UDim2.new(1, 0, 0, 50),
+        Position = UDim2.new(0, 0, 0, 60),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BorderColor3 = Color3.fromRGB(0, 120, 255),
+        BorderSizePixel = 2,
+        Text = "Locked",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        Font = Enum.Font.GothamBold,
+        Parent = self.ControlFrame
+    })
+    
+    -- Initialize drag functionality
+    self:SetupDragging()
+    self:SetupControlButtons()
+    
+    return self
 end
 
--- Função para criar botão
-function DarkUI.createButton(parent, text, size, position, callback, name)
-    local button = Instance.new("TextButton")
-    button.Name = name or "Button"
-    button.Size = size or UDim2.new(0, 120, 0, 30)
-    button.Position = position or UDim2.new(0, 0, 0, 0)
-    button.BackgroundColor3 = DarkUI.settings.theme.background
-    button.TextColor3 = DarkUI.settings.theme.text
-    button.Text = text or "Button"
-    button.TextSize = DarkUI.settings.textSize
-    button.Font = DarkUI.settings.font
-    button.AutoButtonColor = true
-    
-    -- Estilização
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = DarkUI.settings.cornerRadius
-    corner.Parent = button
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.Color = DarkUI.settings.theme.accent
-    stroke.Thickness = 2
-    stroke.Parent = button
-    
-    -- Interações para mobile
-    button.TouchLongPress:Connect(function()
-        if callback then callback() end
+-- Setup dragging for the window
+function DarkUITabbed:SetupDragging()
+    local dragStart, startPos
+    self.Window.InputBegan:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not self.IsLocked then
+            self.IsDragging = true
+            dragStart = input.Position
+            startPos = self.Window.Position
+        end
     end)
     
-    button.MouseButton1Click:Connect(function()
-        if callback then callback() end
+    self.Window.InputChanged:Connect(function(input)
+        if self.IsDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            self.Window.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
     end)
     
-    button.Parent = parent
-    return button
+    self.Window.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            self.IsDragging = false
+        end
+    end)
 end
 
--- Função para criar checkbox
-function DarkUI.createCheckbox(parent, text, defaultValue, callback, name)
-    local container = Instance.new("Frame")
-    container.Name = name or "CheckboxContainer"
-    container.Size = UDim2.new(1, 0, 0, 30)
-    container.BackgroundTransparency = 1
-    container.Parent = parent
+-- Setup control buttons (Show/Hide and Locked/Unlocked)
+function DarkUITabbed:SetupControlButtons()
+    self.ShowHideButton.MouseButton1Click:Connect(function()
+        self.IsVisible = not self.IsVisible
+        self.Window.Visible = self.IsVisible
+        self.ShowHideButton.Text = self.IsVisible and "Hide" or "Show"
+    end)
     
-    local checkbox = Instance.new("Frame")
-    checkbox.Name = "Checkbox"
-    checkbox.Size = UDim2.new(0, 20, 0, 20)
-    checkbox.Position = UDim2.new(0, 0, 0.5, -10)
-    checkbox.BackgroundColor3 = DarkUI.settings.theme.background
+    self.LockButton.MouseButton1Click:Connect(function()
+        self.IsLocked = not self.IsLocked
+        self.LockButton.Text = self.IsLocked and "Locked" or "Unlocked"
+    end)
+end
+
+-- Create a new tab
+function DarkUITabbed:AddTab(name)
+    local tab = {}
+    tab.Name = name
+    tab.Button = create("TextButton", {
+        Size = UDim2.new(0, 100, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+        Text = name,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        Font = Enum.Font.Gotham,
+        Parent = self.TabContainer
+    })
     
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 4)
-    corner.Parent = checkbox
+    -- Tab content frame
+    tab.Content = create("Frame", {
+        Size = UDim2.new(1, 0, 0, 600), -- Two layouts per tab
+        BackgroundTransparency = 1,
+        Visible = false,
+        Parent = self.ScrollView
+    })
     
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = DarkUI.settings.theme.accent
-    stroke.Thickness = 2
-    stroke.Parent = checkbox
+    -- Layout for content
+    tab.Layout = create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 10),
+        Parent = tab.Content
+    })
     
-    local checkmark = Instance.new("ImageLabel")
-    checkmark.Name = "Checkmark"
-    checkmark.Size = UDim2.new(0.8, 0, 0.8, 0)
-    checkmark.Position = UDim2.new(0.1, 0, 0.1, 0)
-    checkmark.BackgroundTransparency = 1
-    checkmark.Image = "rbxassetid://7072718162" -- Ícone de check
-    checkmark.ImageColor3 = DarkUI.settings.theme.accent
-    checkmark.Visible = defaultValue or false
-    checkmark.Parent = checkbox
+    -- Add tab button to layout
+    local tabLayout = self.TabContainer:FindFirstChild("UIListLayout") or create("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 5),
+        Parent = self.TabContainer
+    })
     
-    local label = DarkUI.createText(container, text, UDim2.new(1, -30, 1, 0), UDim2.new(0, 30, 0, 0))
+    -- Switch tab on click
+    tab.Button.MouseButton1Click:Connect(function()
+        self:SwitchTab(tab)
+    end)
     
-    checkbox.Parent = container
-    
-    -- Interações
-    local function toggle()
-        checkmark.Visible = not checkmark.Visible
-        if callback then callback(checkmark.Visible) end
+    table.insert(self.Tabs, tab)
+    if not self.CurrentTab then
+        self:SwitchTab(tab)
     end
     
-    checkbox.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            toggle()
-        end
-    end)
-    
-    label.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            toggle()
-        end
-    end)
-    
-    return {
-        container = container,
-        checkbox = checkbox,
-        checkmark = checkmark,
-        setValue = function(self, value)
-            checkmark.Visible = value
-            if callback then callback(value) end
-        end
-    }
+    -- Update ScrollView canvas
+    self:UpdateCanvasSize()
+    return tab
 end
 
--- Função para criar slider
-function DarkUI.createSlider(parent, text, min, max, defaultValue, callback, name)
-    local container = Instance.new("Frame")
-    container.Name = name or "SliderContainer"
-    container.Size = UDim2.new(1, 0, 0, 60)
-    container.BackgroundTransparency = 1
-    container.Parent = parent
-    
-    local title = DarkUI.createText(container, text, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 0))
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    
-    local sliderTrack = Instance.new("Frame")
-    sliderTrack.Name = "SliderTrack"
-    sliderTrack.Size = UDim2.new(1, 0, 0, 10)
-    sliderTrack.Position = UDim2.new(0, 0, 0, 30)
-    sliderTrack.BackgroundColor3 = DarkUI.settings.theme.background
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = sliderTrack
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = DarkUI.settings.theme.border
-    stroke.Thickness = 1
-    stroke.Parent = sliderTrack
-    
-    local sliderFill = Instance.new("Frame")
-    sliderFill.Name = "SliderFill"
-    sliderFill.Size = UDim2.new((defaultValue - min) / (max - min), 0, 1, 0)
-    sliderFill.Position = UDim2.new(0, 0, 0, 0)
-    sliderFill.BackgroundColor3 = DarkUI.settings.theme.accent
-    
-    local cornerFill = Instance.new("UICorner")
-    cornerFill.CornerRadius = UDim.new(1, 0)
-    cornerFill.Parent = sliderFill
-    
-    local sliderThumb = Instance.new("Frame")
-    sliderThumb.Name = "SliderThumb"
-    sliderThumb.Size = UDim2.new(0, 20, 0, 20)
-    sliderThumb.Position = UDim2.new(sliderFill.Size.X.Scale, -10, 0.5, -10)
-    sliderThumb.BackgroundColor3 = DarkUI.settings.theme.accent
-    sliderThumb.ZIndex = 2
-    
-    local cornerThumb = Instance.new("UICorner")
-    cornerThumb.CornerRadius = UDim.new(1, 0)
-    cornerThumb.Parent = sliderThumb
-    
-    local strokeThumb = Instance.new("UIStroke")
-    strokeThumb.Color = DarkUI.settings.theme.text
-    strokeThumb.Thickness = 2
-    strokeThumb.Parent = sliderThumb
-    
-    local valueLabel = DarkUI.createText(container, tostring(defaultValue), UDim2.new(0, 50, 0, 20), UDim2.new(1, -50, 0, 0))
-    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-    
-    sliderFill.Parent = sliderTrack
-    sliderThumb.Parent = sliderTrack
-    sliderTrack.Parent = container
-    
-    -- Lógica de interação
-    local dragging = false
-    
-    local function updateSlider(input)
-        local relativeX = (input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X
-        relativeX = math.clamp(relativeX, 0, 1)
-        
-        local value = min + (max - min) * relativeX
-        value = math.floor(value * 100) / 100 -- Arredonda para 2 casas decimais
-        
-        sliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
-        sliderThumb.Position = UDim2.new(relativeX, -10, 0.5, -10)
-        valueLabel.Text = tostring(value)
-        
-        if callback then callback(value) end
+-- Switch to a specific tab
+function DarkUITabbed:SwitchTab(tab)
+    if self.CurrentTab then
+        self.CurrentTab.Content.Visible = false
+        self.CurrentTab.Button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     end
+    self.CurrentTab = tab
+    self.CurrentTab.Content.Visible = true
+    self.CurrentTab.Button.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+end
+
+-- Update ScrollView canvas size
+function DarkUITabbed:UpdateCanvasSize()
+    local totalHeight = 0
+    for _, tab in pairs(self.Tabs) do
+        if tab.Content.Visible then
+            totalHeight = tab.Content.AbsoluteSize.Y
+        end
+    end
+    self.ScrollView.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 20)
+end
+
+-- Add a square (button-like element)
+function DarkUITabbed:AddSquare(tab, label, callback)
+    local square = create("TextButton", {
+        Size = UDim2.new(0, 100, 0, 100),
+        BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+        Text = label,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        Font = Enum.Font.Gotham,
+        Parent = tab.Content
+    })
     
-    sliderThumb.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
+    create("UIStroke", {
+        Color = Color3.fromRGB(70, 70, 70),
+        Thickness = 1,
+        Parent = square
+    })
+    
+    square.MouseButton1Click:Connect(callback or function() end)
+end
+
+-- Add a slider
+function DarkUITabbed:AddSlider(tab, label, min, max, default, callback)
+    local sliderFrame = create("Frame", {
+        Size = UDim2.new(1, -20, 0, 50),
+        BackgroundTransparency = 1,
+        Parent = tab.Content
+    })
+    
+    local labelText = create("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+        Text = label,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        Font = Enum.Font.Gotham,
+        Parent = sliderFrame
+    })
+    
+    local slider = create("TextButton", {
+        Size = UDim2.new(1, 0, 0, 10),
+        Position = UDim2.new(0, 0, 0, 30),
+        BackgroundColor3 = Color3.fromRGB(70, 70, 70),
+        Text = "",
+        Parent = sliderFrame
+    })
+    
+    local knob = create("Frame", {
+        Size = UDim2.new(0, 20, 0, 20),
+        BackgroundColor3 = Color3.fromRGB(0, 120, 255),
+        Position = UDim2.new((default - min) / (max - min), -10, 0, -5),
+        Parent = slider
+    })
+    
+    local value = default
+    slider.MouseButton1Down:Connect(function()
+        local mouseConn
+        mouseConn = UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                local relativeX = math.clamp((input.Position.X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, 0, 1)
+                value = min + (max - min) * relativeX
+                knob.Position = UDim2.new(relativeX, -10, 0, -5)
+                if callback then
+                    callback(value)
                 end
-            end)
-        end
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                mouseConn:Disconnect()
+            end
+        end)
     end)
-    
-    sliderTrack.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            updateSlider(input)
-        end
-    end)
-    
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            updateSlider(input)
-        end
-    end)
-    
-    return {
-        container = container,
-        setValue = function(self, value)
-            local relativeX = (value - min) / (max - min)
-            relativeX = math.clamp(relativeX, 0, 1)
-            
-            sliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
-            sliderThumb.Position = UDim2.new(relativeX, -10, 0.5, -10)
-            valueLabel.Text = tostring(value)
-            
-            if callback then callback(value) end
-        end
-    }
 end
 
--- Função para criar dropdown
-function DarkUI.createDropdown(parent, text, options, defaultOption, callback, name)
-    local container = Instance.new("Frame")
-    container.Name = name or "DropdownContainer"
-    container.Size = UDim2.new(1, 0, 0, 60)
-    container.BackgroundTransparency = 1
-    container.ClipsDescendants = true
-    container.Parent = parent
+-- Add a checkbox
+function DarkUITabbed:AddCheckbox(tab, label, default, callback)
+    local checkboxFrame = create("Frame", {
+        Size = UDim2.new(1, -20, 0, 30),
+        BackgroundTransparency = 1,
+        Parent = tab.Content
+    })
     
-    local title = DarkUI.createText(container, text, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 0))
-    title.TextXAlignment = Enum.TextXAlignment.Left
+    local checkbox = create("TextButton", {
+        Size = UDim2.new(0, 20, 0, 20),
+        BackgroundColor3 = default and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(50, 50, 50),
+        Text = "",
+        Parent = checkboxFrame
+    })
     
-    local dropdownButton = Instance.new("TextButton")
-    dropdownButton.Name = "DropdownButton"
-    dropdownButton.Size = UDim2.new(1, 0, 0, 30)
-    dropdownButton.Position = UDim2.new(0, 0, 0, 25)
-    dropdownButton.BackgroundColor3 = DarkUI.settings.theme.background
-    dropdownButton.TextColor3 = DarkUI.settings.theme.text
-    dropdownButton.Text = defaultOption or (options and options[1] or "Select")
-    dropdownButton.TextSize = DarkUI.settings.textSize
-    dropdownButton.Font = DarkUI.settings.font
-    dropdownButton.TextXAlignment = Enum.TextXAlignment.Left
-    dropdownButton.TextTruncate = Enum.TextTruncate.AtEnd
+    create("UIStroke", {
+        Color = Color3.fromRGB(70, 70, 70),
+        Thickness = 1,
+        Parent = checkbox
+    })
     
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = DarkUI.settings.cornerRadius
-    corner.Parent = dropdownButton
+    local labelText = create("TextLabel", {
+        Size = UDim2.new(1, -30, 1, 0),
+        Position = UDim2.new(0, 30, 0, 0),
+        BackgroundTransparency = 1,
+        Text = label,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = checkboxFrame
+    })
     
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = DarkUI.settings.theme.accent
-    stroke.Thickness = 2
-    stroke.Parent = dropdownButton
-    
-    local dropdownIcon = Instance.new("ImageLabel")
-    dropdownIcon.Name = "DropdownIcon"
-    dropdownIcon.Size = UDim2.new(0, 20, 0, 20)
-    dropdownIcon.Position = UDim2.new(1, -25, 0.5, -10)
-    dropdownIcon.AnchorPoint = Vector2.new(1, 0.5)
-    dropdownIcon.BackgroundTransparency = 1
-    dropdownIcon.Image = "rbxassetid://7072723420" -- Ícone de seta para baixo
-    dropdownIcon.ImageColor3 = DarkUI.settings.theme.accent
-    dropdownIcon.Parent = dropdownButton
-    
-    local dropdownList = Instance.new("ScrollingFrame")
-    dropdownList.Name = "DropdownList"
-    dropdownList.Size = UDim2.new(1, 0, 0, 0)
-    dropdownList.Position = UDim2.new(0, 0, 0, 60)
-    dropdownList.BackgroundColor3 = DarkUI.settings.theme.foreground
-    dropdownList.ScrollBarThickness = 5
-    dropdownList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    dropdownList.CanvasSize = UDim2.new(0, 0, 0, 0)
-    dropdownList.Visible = false
-    
-    local cornerList = Instance.new("UICorner")
-    cornerList.CornerRadius = DarkUI.settings.cornerRadius
-    cornerList.Parent = dropdownList
-    
-    local strokeList = Instance.new("UIStroke")
-    strokeList.Color = DarkUI.settings.theme.border
-    strokeList.Thickness = 1
-    strokeList.Parent = dropdownList
-    
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.Padding = UDim.new(0, 2)
-    listLayout.Parent = dropdownList
-    
-    -- Criar itens do dropdown
-    local function createDropdownItems()
-        for i, option in ipairs(options) do
-            local itemButton = Instance.new("TextButton")
-            itemButton.Name = "Item_" .. option
-            itemButton.Size = UDim2.new(1, -10, 0, 30)
-            itemButton.Position = UDim2.new(0, 5, 0, (i-1)*32)
-            itemButton.BackgroundColor3 = DarkUI.settings.theme.background
-            itemButton.TextColor3 = DarkUI.settings.theme.text
-            itemButton.Text = option
-            itemButton.TextSize = DarkUI.settings.textSize
-            itemButton.Font = DarkUI.settings.font
-            itemButton.TextXAlignment = Enum.TextXAlignment.Left
-            
-            local cornerItem = Instance.new("UICorner")
-            cornerItem.CornerRadius = UDim.new(0, 4)
-            cornerItem.Parent = itemButton
-            
-            itemButton.MouseButton1Click:Connect(function()
-                dropdownButton.Text = option
-                dropdownList.Visible = false
-                dropdownIcon.Image = "rbxassetid://7072723420" -- Ícone de seta para baixo
-                container.Size = UDim2.new(1, 0, 0, 60)
-                if callback then callback(option) end
-            end)
-            
-            itemButton.Parent = dropdownList
+    local checked = default
+    checkbox.MouseButton1Click:Connect(function()
+        checked = not checked
+        checkbox.BackgroundColor3 = checked and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(50, 50, 50)
+        if callback then
+            callback(checked)
         end
+    end)
+end
+
+-- Add a dropdown
+function DarkUITabbed:AddDropdown(tab, label, options, default, callback)
+    local dropdownFrame = create("Frame", {
+        Size = UDim2.new(1, -20, 0, 50),
+        BackgroundTransparency = 1,
+        Parent = tab.Content
+    })
+    
+    local labelText = create("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+        Text = label,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        Font = Enum.Font.Gotham,
+        Parent = dropdownFrame
+    })
+    
+    local dropdownButton = create("TextButton", {
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, 30),
+        BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+        Text = default or options[1],
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        Font = Enum.Font.Gotham,
+        Parent = dropdownFrame
+    })
+    
+    create("UIStroke", {
+        Color = Color3.fromRGB(70, 70, 70),
+        Thickness = 1,
+        Parent = dropdownButton
+    })
+    
+    local dropdownList = create("Frame", {
+        Size = UDim2.new(1, 0, 0, #options * 30),
+        Position = UDim2.new(0, 0, 0, 50),
+        BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+        Visible = false,
+        Parent = dropdownFrame
+    })
+    
+    create("UIStroke", {
+        Color = Color3.fromRGB(70, 70, 70),
+        Thickness = 1,
+        Parent = dropdownList
+    })
+    
+    local listLayout = create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = dropdownList
+    })
+    
+    for i, option in ipairs(options) do
+        local optionButton = create("TextButton", {
+            Size = UDim2.new(1, 0, 0, 30),
+            BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+            Text = option,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextScaled = true,
+            Font = Enum.Font.Gotham,
+            Parent = dropdownList
+        })
+        
+        optionButton.MouseButton1Click:Connect(function()
+            dropdownButton.Text = option
+            dropdownList.Visible = false
+            if callback then
+                callback(option)
+            end
+        end)
     end
     
-    if options then
-        createDropdownItems()
-    end
-    
-    -- Alternar dropdown
     dropdownButton.MouseButton1Click:Connect(function()
         dropdownList.Visible = not dropdownList.Visible
-        if dropdownList.Visible then
-            dropdownIcon.Image = "rbxassetid://7072708252" -- Ícone de seta para cima
-            container.Size = UDim2.new(1, 0, 0, 60 + math.min(150, #options * 32))
-        else
-            dropdownIcon.Image = "rbxassetid://7072723420" -- Ícone de seta para baixo
-            container.Size = UDim2.new(1, 0, 0, 60)
-        end
     end)
-    
-    dropdownButton.Parent = container
-    dropdownList.Parent = container
-    
-    return {
-        container = container,
-        setOptions = function(self, newOptions)
-            -- Limpar itens existentes
-            for _, child in ipairs(dropdownList:GetChildren()) do
-                if child:IsA("TextButton") then
-                    child:Destroy()
-                end
-            end
-            
-            -- Criar novos itens
-            options = newOptions
-            createDropdownItems()
-            
-            -- Resetar seleção
-            dropdownButton.Text = options[1] or "Select"
-            dropdownList.Visible = false
-            dropdownIcon.Image = "rbxassetid://7072723420" -- Ícone de seta para baixo
-            container.Size = UDim2.new(1, 0, 0, 60)
-        end,
-        setSelected = function(self, option)
-            if table.find(options, option) then
-                dropdownButton.Text = option
-                if callback then callback(option) end
-            end
-        end
-    }
 end
 
--- Função para criar uma aba
-function DarkUI.createTab(parent, name)
-    local tabButton = Instance.new("TextButton")
-    tabButton.Name = name .. "TabButton"
-    tabButton.Size = UDim2.new(0, 100, 0, 30)
-    tabButton.BackgroundColor3 = DarkUI.settings.theme.background
-    tabButton.TextColor3 = DarkUI.settings.theme.text
-    tabButton.Text = name
-    tabButton.TextSize = DarkUI.settings.textSize
-    tabButton.Font = DarkUI.settings.font
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = tabButton
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = DarkUI.settings.theme.border
-    stroke.Thickness = 1
-    stroke.Parent = tabButton
-    
-    local tabContent = Instance.new("ScrollingFrame")
-    tabContent.Name = name .. "TabContent"
-    tabContent.Size = UDim2.new(1, 0, 1, -40)
-    tabContent.Position = UDim2.new(0, 0, 0, 40)
-    tabContent.BackgroundTransparency = 1
-    tabContent.ScrollBarThickness = 5
-    tabContent.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    tabContent.CanvasSize = UDim2.new(0, 0, 0, 0)
-    tabContent.Visible = false
-    
-    local contentLayout = Instance.new("UIListLayout")
-    contentLayout.Padding = UDim.new(0, DarkUI.settings.elementPadding)
-    contentLayout.Parent = tabContent
-    
-    tabButton.Parent = parent
-    tabContent.Parent = parent
-    
-    return {
-        button = tabButton,
-        content = tabContent,
-        name = name
-    }
-end
-
--- Função para criar o menu principal
-function DarkUI.createMenu()
-    -- Criar a tela de fundo do menu
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "DarkUIMenu"
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.ResetOnSpawn = false
-    
-    -- Frame principal do menu
-    local mainFrame = DarkUI.createFrame(screenGui, UDim2.new(0, 300, 0, 400), UDim2.new(0.5, -150, 0.5, -200), DarkUI.settings.theme.foreground, 0, "MainFrame")
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = DarkUI.settings.cornerRadius
-    corner.Parent = mainFrame
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = DarkUI.settings.theme.border
-    stroke.Thickness = 2
-    stroke.Parent = mainFrame
-    
-    -- Barra de título
-    local titleBar = DarkUI.createFrame(mainFrame, UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 0), DarkUI.settings.theme.background, 0, "TitleBar")
-    local titleText = DarkUI.createText(titleBar, "Dark UI", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0))
-    
-    -- Container de abas
-    local tabsContainer = DarkUI.createFrame(mainFrame, UDim2.new(1, -20, 0, 40), UDim2.new(0, 10, 0, 35), nil, 1, "TabsContainer")
-    local tabsListLayout = Instance.new("UIListLayout")
-    tabsListLayout.FillDirection = Enum.FillDirection.Horizontal
-    tabsListLayout.Padding = UDim.new(0, 5)
-    tabsListLayout.Parent = tabsContainer
-    
-    -- Criar abas de exemplo
-    local tabs = {}
-    local tabContents = {}
-    
-    local function switchTab(tabName)
-        for _, tab in ipairs(tabs) do
-            tab.content.Visible = tab.name == tabName
-            tab.button.BackgroundColor3 = tab.name == tabName and DarkUI.settings.theme.accent or DarkUI.settings.theme.background
-        end
-    end
-    
-    -- Aba 1
-    local tab1 = DarkUI.createTab(mainFrame, "Aba 1")
-    table.insert(tabs, tab1)
-    
-    -- Conteúdo da Aba 1
-    local section1 = DarkUI.createFrame(tab1.content, UDim2.new(1, -10, 0, 150), UDim2.new(0, 5, 0, 5), DarkUI.settings.theme.background, 0, "Section1")
-    local cornerSection = Instance.new("UICorner")
-    cornerSection.CornerRadius = DarkUI.settings.cornerRadius
-    cornerSection.Parent = section1
-    
-    local strokeSection = Instance.new("UIStroke")
-    strokeSection.Color = DarkUI.settings.theme.border
-    strokeSection.Thickness = 1
-    strokeSection.Parent = section1
-    
-    -- Adicionar elementos à seção 1
-    DarkUI.createText(section1, "Seção 1", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 5))
-    
-    local checkbox1 = DarkUI.createCheckbox(section1, "Checkbox 1", false, function(value)
-        print("Checkbox 1:", value)
-    end)
-    
-    local slider1 = DarkUI.createSlider(section1, "Slider", 0, 100, 50, function(value)
-        print("Slider value:", value)
-    end)
-    
-    -- Seção 2
-    local section2 = DarkUI.createFrame(tab1.content, UDim2.new(1, -10, 0, 150), UDim2.new(0, 5, 0, 165), DarkUI.settings.theme.background, 0, "Section2")
-    cornerSection:Clone().Parent = section2
-    strokeSection:Clone().Parent = section2
-    
-    DarkUI.createText(section2, "Seção 2", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 5))
-    
-    local dropdown1 = DarkUI.createDropdown(section2, "Dropdown", {"Opção 1", "Opção 2", "Opção 3"}, "Opção 1", function(value)
-        print("Dropdown selecionado:", value)
-    end)
-    
-    -- Aba 2
-    local tab2 = DarkUI.createTab(mainFrame, "Aba 2")
-    table.insert(tabs, tab2)
-    
-    -- Conteúdo da Aba 2
-    local section3 = DarkUI.createFrame(tab2.content, UDim2.new(1, -10, 0, 200), UDim2.new(0, 5, 0, 5), DarkUI.settings.theme.background, 0, "Section3")
-    cornerSection:Clone().Parent = section3
-    strokeSection:Clone().Parent = section3
-    
-    DarkUI.createText(section3, "Outros Elementos", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 5))
-    
-    local button1 = DarkUI.createButton(section3, "Botão 1", UDim2.new(1, -10, 0, 30), UDim2.new(0, 5, 0, 30), function()
-        print("Botão 1 pressionado")
-    end)
-    
-    local button2 = DarkUI.createButton(section3, "Botão 2", UDim2.new(1, -10, 0, 30), UDim2.new(0, 5, 0, 70), function()
-        print("Botão 2 pressionado")
-    end)
-    
-    -- Configurar eventos das abas
-    for _, tab in ipairs(tabs) do
-        tab.button.MouseButton1Click:Connect(function()
-            switchTab(tab.name)
-        end)
-    end
-    
-    -- Ativar a primeira aba
-    switchTab("Aba 1")
-    
-    -- Botões de controle
-    local controlButtons = DarkUI.createFrame(screenGui, UDim2.new(0, 120, 0, 70), UDim2.new(0, 10, 0.5, -35), nil, 1, "ControlButtons")
-    
-    local showHideButton = DarkUI.createButton(controlButtons, "Hide", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 0), function()
-        DarkUI.menuVisible = not DarkUI.menuVisible
-        mainFrame.Visible = DarkUI.menuVisible
-        showHideButton.Text = DarkUI.menuVisible and "Hide" or "Show"
-    end, "ShowHideButton")
-    
-    local lockUnlockButton = DarkUI.createButton(controlButtons, "Unlocked", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 40), function()
-        DarkUI.menuLocked = not DarkUI.menuLocked
-        lockUnlockButton.Text = DarkUI.menuLocked and "Locked" or "Unlocked"
-    end, "LockUnlockButton")
-    
-    -- Função para arrastar o menu
-    local function startDrag(input)
-        if DarkUI.menuLocked then return end
-        DarkUI.dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
-        DarkUI.menuPosition = mainFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                DarkUI.dragStartPos = nil
-            end
-        end)
-    end
-    
-    local function updateDrag(input)
-        if DarkUI.menuLocked or not DarkUI.dragStartPos then return end
-        local delta = Vector2.new(input.Position.X, input.Position.Y) - DarkUI.dragStartPos
-        mainFrame.Position = UDim2.new(
-            DarkUI.menuPosition.X.Scale, 
-            DarkUI.menuPosition.X.Offset + delta.X,
-            DarkUI.menuPosition.Y.Scale, 
-            DarkUI.menuPosition.Y.Offset + delta.Y
-        )
-    end
-    
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            startDrag(input)
-        end
-    end)
-    
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            updateDrag(input)
-        end
-    end)
-    
-    -- Adicionar ao jogo
-    screenGui.Parent = game:GetService("CoreGui") or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    
-    return {
-        gui = screenGui,
-        mainFrame = mainFrame,
-        tabs = tabs,
-        showHideButton = showHideButton,
-        lockUnlockButton = lockUnlockButton
-    }
-end
-
--- Inicializar a UI
-DarkUI.menu = DarkUI.createMenu()
-
-return DarkUI
+return DarkUITabbed
