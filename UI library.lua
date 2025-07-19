@@ -1,8 +1,9 @@
 local UILibrary = {}
 
+local UserInputService = game:GetService("UserInputService")
+
 function UILibrary:CreateWindow(titleText)
 	local player = game:GetService("Players").LocalPlayer
-	local mouse = player:GetMouse()
 	local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 	gui.Name = "CustomUI"
 	gui.ResetOnSpawn = false
@@ -19,7 +20,7 @@ function UILibrary:CreateWindow(titleText)
 	local stroke = Instance.new("UIStroke", main)
 	stroke.Color = Color3.fromRGB(0, 120, 255)
 	stroke.Thickness = 2
-	stroke.Transparency = 0.4  -- borda mais sutil
+	stroke.Transparency = 0.4
 
 	local title = Instance.new("TextLabel", main)
 	title.Size = UDim2.new(1, 0, 0, 40)
@@ -31,12 +32,13 @@ function UILibrary:CreateWindow(titleText)
 
 	local tabsHolder = Instance.new("Frame", main)
 	tabsHolder.Size = UDim2.new(1, 0, 0, 30)
-	tabsHolder.Position = UDim2.new(0, 0, 0, 40)
+	tabsHolder.Position = UDim2.new(0, 8, 0, 40) -- padding 8px para não encostar na borda
 	tabsHolder.BackgroundTransparency = 1
 
 	local tabLayout = Instance.new("UIListLayout", tabsHolder)
 	tabLayout.FillDirection = Enum.FillDirection.Horizontal
 	tabLayout.Padding = UDim.new(0, 4)
+	tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
 	local contentHolder = Instance.new("Frame", main)
 	contentHolder.Position = UDim2.new(0, 0, 0, 70)
@@ -107,6 +109,16 @@ function UILibrary:CreateWindow(titleText)
 		btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 		btn.BorderSizePixel = 1
 		btn.BorderColor3 = Color3.fromRGB(0, 120, 255)
+		btn.AutoButtonColor = true
+		btn.Font = Enum.Font.Gotham
+		btn.TextSize = 15
+
+		btn.MouseEnter:Connect(function()
+			btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+		end)
+		btn.MouseLeave:Connect(function()
+			btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+		end)
 
 		local tabContent = Instance.new("Frame", contentHolder)
 		tabContent.Size = UDim2.new(1, 0, 1, 0)
@@ -144,10 +156,10 @@ function UILibrary:CreateWindow(titleText)
 		rightScroll.Position = UDim2.new(0.5, 5, 0, 20)
 
 		local leftLayout = Instance.new("UIListLayout", leftScroll)
-		leftLayout.Padding = UDim.new(0, 5)
+		leftLayout.Padding = UDim.new(0, 4)
 
 		local rightLayout = Instance.new("UIListLayout", rightScroll)
-		rightLayout.Padding = UDim.new(0, 5)
+		rightLayout.Padding = UDim.new(0, 4)
 
 		btn.MouseButton1Click:Connect(function()
 			for _, t in pairs(tabs) do t.TabFrame.Visible = false end
@@ -157,6 +169,15 @@ function UILibrary:CreateWindow(titleText)
 		table.insert(tabs, {TabFrame = tabContent})
 
 		local api = {}
+
+		local function applyHoverEffects(button)
+			button.MouseEnter:Connect(function()
+				button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+			end)
+			button.MouseLeave:Connect(function()
+				button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+			end)
+		end
 
 		function api:AddButton(text, callback, side)
 			local parent = side == "Right" and rightScroll or leftScroll
@@ -168,8 +189,7 @@ function UILibrary:CreateWindow(titleText)
 			btn.BorderSizePixel = 1
 			btn.BorderColor3 = Color3.fromRGB(0, 120, 255)
 			btn.AutoButtonColor = true
-			btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80) end)
-			btn.MouseLeave:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60) end)
+			applyHoverEffects(btn)
 			btn.MouseButton1Click:Connect(callback)
 		end
 
@@ -187,8 +207,7 @@ function UILibrary:CreateWindow(titleText)
 			local function update() toggle.Text = text .. ": " .. (state and "ON" or "OFF") end
 			update()
 
-			toggle.MouseEnter:Connect(function() toggle.BackgroundColor3 = Color3.fromRGB(80, 80, 80) end)
-			toggle.MouseLeave:Connect(function() toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60) end)
+			applyHoverEffects(toggle)
 
 			toggle.MouseButton1Click:Connect(function()
 				state = not state
@@ -211,10 +230,15 @@ function UILibrary:CreateWindow(titleText)
 			local open = false
 			local opts = {}
 
+			local function closeDropdown()
+				for _, o in pairs(opts) do o:Destroy() end
+				opts = {}
+				open = false
+			end
+
 			dropdown.MouseButton1Click:Connect(function()
 				if open then
-					for _, o in pairs(opts) do o:Destroy() end
-					opts = {}
+					closeDropdown()
 				else
 					for _, val in ipairs(options) do
 						local opt = Instance.new("TextButton", parent)
@@ -228,12 +252,11 @@ function UILibrary:CreateWindow(titleText)
 						opt.MouseButton1Click:Connect(function()
 							dropdown.Text = text .. ": " .. val
 							callback(val)
-							open = false
-							for _, o in pairs(opts) do o:Destroy() end
+							closeDropdown()
 						end)
 					end
+					open = true
 				end
-				open = not open
 			end)
 		end
 
@@ -283,26 +306,38 @@ function UILibrary:CreateWindow(titleText)
 			fill.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 
 			local dragging = false
-			slider.InputBegan:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+			local function updateSlider(inputPosX)
+				local relativeX = math.clamp(inputPosX - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
+				local percent = relativeX / slider.AbsoluteSize.X
+				local value = math.floor(min + (max - min) * percent)
+				fill.Size = UDim2.new(percent, 0, 1, 0)
+				label.Text = text .. ": " .. value
+				callback(value)
+			end
+
+			local function inputBegan(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = true
+					updateSlider(input.Position.X)
 				end
-			end)
-			slider.InputEnded:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			end
+
+			local function inputChanged(input)
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					updateSlider(input.Position.X)
+				end
+			end
+
+			local function inputEnded(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = false
 				end
-			end)
-			slider.InputChanged:Connect(function(input)
-				if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-					local relativeX = math.clamp(input.Position.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
-					local percent = relativeX / slider.AbsoluteSize.X
-					local value = math.floor(min + (max - min) * percent)
-					fill.Size = UDim2.new(percent, 0, 1, 0)
-					label.Text = text .. ": " .. value
-					callback(value)
-				end
-			end)
+			end
+
+			slider.InputBegan:Connect(inputBegan)
+			slider.InputChanged:Connect(inputChanged)
+			slider.InputEnded:Connect(inputEnded)
 
 			return sliderHolder
 		end
