@@ -57,9 +57,9 @@ function UILibrary:CreateWindow(titleText)
     tabScroll.Position = UDim2.new(0, 0, 0, 30)
     tabScroll.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     tabScroll.BorderSizePixel = 0
-    tabScroll.CanvasSize = UDim2.new(0, 0, 0, 35)
+    -- tabScroll.CanvasSize = UDim2.new(0, 0, 0, 35) -- Esta linha pode ser removida ou ajustada se o AutomaticCanvasSize.X for usado.
     tabScroll.ScrollBarThickness = 4
-    tabScroll.AutomaticCanvasSize = Enum.AutomaticSize.X
+    tabScroll.AutomaticCanvasSize = Enum.AutomaticSize.X -- Garante que a largura do CanvasSize seja ajustada automaticamente
     tabScroll.ScrollingDirection = Enum.ScrollingDirection.X
     tabScroll.Name = "TabScroll"
 
@@ -70,6 +70,7 @@ function UILibrary:CreateWindow(titleText)
     tabLayout.Padding = UDim.new(0, 4)
 
     local tabs = {}
+    local firstTabCreated = false -- Variável para controlar a primeira aba
 
     function tabs:CreateTab(name)
         local tabBtn = Instance.new("TextButton")
@@ -91,6 +92,12 @@ function UILibrary:CreateWindow(titleText)
         container.Name = name
         container.BackgroundTransparency = 1
 
+        -- Se for a primeira aba, torne-a visível por padrão
+        if not firstTabCreated then
+            container.Visible = true
+            firstTabCreated = true
+        end
+
         local scrollLeft = Instance.new("ScrollingFrame", container)
         scrollLeft.Size = UDim2.new(0.5, -5, 1, 0)
         scrollLeft.Position = UDim2.new(0, 0, 0, 0)
@@ -98,12 +105,14 @@ function UILibrary:CreateWindow(titleText)
         scrollLeft.BorderSizePixel = 0
         scrollLeft.ScrollBarThickness = 6
         scrollLeft.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        scrollLeft.CanvasSize = UDim2.new(0, 0, 0, 0)
+        scrollLeft.CanvasSize = UDim2.new(1, 0, 0, 0) -- CORREÇÃO AQUI: CanvasSize.X deve ser 1 ou a largura do scrollLeft
         scrollLeft.Name = "Left"
 
         local leftLayout = Instance.new("UIListLayout", scrollLeft)
         leftLayout.Padding = UDim.new(0, 4)
         leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        leftLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center -- Melhorar o alinhamento
+        leftLayout.FillDirection = Enum.FillDirection.Vertical
 
         local scrollRight = Instance.new("ScrollingFrame", container)
         scrollRight.Size = UDim2.new(0.5, -5, 1, 0)
@@ -112,16 +121,19 @@ function UILibrary:CreateWindow(titleText)
         scrollRight.BorderSizePixel = 0
         scrollRight.ScrollBarThickness = 6
         scrollRight.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        scrollRight.CanvasSize = UDim2.new(0, 0, 0, 0)
+        scrollRight.CanvasSize = UDim2.new(1, 0, 0, 0) -- CORREÇÃO AQUI: CanvasSize.X deve ser 1 ou a largura do scrollRight
         scrollRight.Name = "Right"
 
         local rightLayout = Instance.new("UIListLayout", scrollRight)
         rightLayout.Padding = UDim.new(0, 4)
         rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        rightLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center -- Melhorar o alinhamento
+        rightLayout.FillDirection = Enum.FillDirection.Vertical
 
         local function handleClick()
             for _, child in ipairs(mainUI:GetChildren()) do
-                if child:IsA("Frame") and child ~= tabScroll and child ~= title then
+                -- Certifica-se de que estamos lidando apenas com os containers das abas
+                if child:IsA("Frame") and child.Name ~= "TabScroll" and child.Name ~= "Title" and child.Name ~= "MainUI" then
                     child.Visible = false
                 end
             end
@@ -156,25 +168,25 @@ function UILibrary:CreateWindow(titleText)
             dragging = true
             dragStart = input.Position
             startPos = outerFrame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
+            -- Não conecte Changed aqui, pois ele pode ser disparado múltiplas vezes
+            -- Em vez disso, use InputEnded globalmente ou uma verificação mais robusta.
         end
     end)
 
-    outerFrame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
+    UIS.InputEnded:Connect(function(input) -- Movido InputEnded para UIS
+        if input == dragInput then
+            dragging = false
         end
     end)
 
     UIS.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            update(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            if dragging then -- Apenas atualiza se estiver arrastando
+                update(input)
+            end
         end
     end)
+
 
     return tabs
 end
@@ -420,3 +432,4 @@ end
 
 
 return UILibrary
+
