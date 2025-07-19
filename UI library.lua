@@ -328,10 +328,12 @@ function UILibrary:CreateWindow(titleText)
             holder.Size = UDim2.new(1, -10, 0, 36); holder.BackgroundTransparency = 1
 
             local box = Instance.new("TextButton", holder)
-            box.Size = UDim2.new(0, 26, 0, 26); box.Position = UDim2.new(0, 0, 0, 5)
-            box.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-            box.BorderSizePixel = 0; box.AutoButtonColor = true
-            Box.Text = ""
+box.Size = UDim2.new(0, 26, 0, 26)
+box.Position = UDim2.new(0, 0, 0, 5)
+box.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+box.BorderSizePixel = 0
+box.AutoButtonColor = true
+box.Text = "" -- <- Isso remove o texto "Button"
             local boxCorner = Instance.new("UICorner", box); boxCorner.CornerRadius = UDim.new(0, 8)
 
             local tick = Instance.new("Frame", box)
