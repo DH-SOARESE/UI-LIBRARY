@@ -318,32 +318,76 @@ function UILibrary:CreateWindow(titleText)
             end)
         end
 
-        function api:AddDropdownToggle(text, callback, side)
-            local parent = side == "Right" and rightScroll or leftScroll
-            local dt = Instance.new("TextButton")
-            dt.Size = UDim2.new(1, -10, 0, 36)
-            dt.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-            dt.TextColor3 = Color3.new(1, 1, 1)
-            local state = false
-            dt.Text = text .. ": OFF"
-            dt.BorderSizePixel = 0
-            dt.Font = Enum.Font.Gotham
-            dt.TextSize = 15
-            dt.AutoButtonColor = true
-            local dtCorner = Instance.new("UICorner")
-            dtCorner.CornerRadius = UDim.new(0, 8)
-            dtCorner.Parent = dt
-            addHover(dt)
-            dt.Parent = parent
-            dt.MouseButton1Click:Connect(function()
-                state = not state
-                dt.Text = text .. ": " .. (state and "ON" or "OFF")
-                if typeof(callback) == "function" then
-                    callback(state)
-                end
-            end)
-        end
+        function api:AddDropdownOfToggles(data)
+    local parent = rightScroll -- ou leftScroll se quiser opcional
+    local open = false
+    local toggles = {}
 
+    -- Botão principal do Dropdown
+    local dropdownBtn = Instance.new("TextButton")
+    dropdownBtn.Size = UDim2.new(1, -10, 0, 36)
+    dropdownBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    dropdownBtn.TextColor3 = Color3.new(1, 1, 1)
+    dropdownBtn.Text = data.Name .. " ▼"
+    dropdownBtn.BorderSizePixel = 0
+    dropdownBtn.Font = Enum.Font.Gotham
+    dropdownBtn.TextSize = 15
+    dropdownBtn.AutoButtonColor = true
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = dropdownBtn
+    dropdownBtn.Parent = parent
+
+    local function addHover(btn)
+        btn.MouseEnter:Connect(function()
+            btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        end)
+        btn.MouseLeave:Connect(function()
+            btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        end)
+    end
+    addHover(dropdownBtn)
+
+    dropdownBtn.MouseButton1Click:Connect(function()
+        open = not open
+        dropdownBtn.Text = data.Name .. (open and " ▲" or " ▼")
+        for _, toggle in ipairs(toggles) do
+            toggle.Visible = open
+        end
+    end)
+
+    -- Cria os toggles
+    for _, item in ipairs(data.ToggleOptions) do
+        local t = Instance.new("TextButton")
+        t.Size = UDim2.new(1, -20, 0, 32)
+        t.Position = UDim2.new(0, 10, 0, 0)
+        t.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        t.TextColor3 = Color3.new(1, 1, 1)
+        t.Font = Enum.Font.Gotham
+        t.TextSize = 14
+        t.BorderSizePixel = 0
+        t.AutoButtonColor = true
+        t.Text = item.Name .. ": " .. ((item.Default and "ON") or "OFF")
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 6)
+        corner.Parent = t
+        t.Visible = false
+        t.Parent = parent
+
+        local state = item.Default or false
+        t.MouseButton1Click:Connect(function()
+            state = not state
+            t.Text = item.Name .. ": " .. (state and "ON" or "OFF")
+            if typeof(item.Callback) == "function" then
+                item.Callback(state)
+            end
+        end)
+
+        table.insert(toggles, t)
+    end
+end
+
+        
         function api:AddSlider(text, min, max, default, callback, side)
             local parent = side == "Right" and rightScroll or leftScroll
             local holder = Instance.new("Frame")
