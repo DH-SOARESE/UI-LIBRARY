@@ -80,7 +80,7 @@ function UILibrary:CreateWindow(titleText)
     local buttonFrame = Instance.new("Frame")
     buttonFrame.Size = UDim2.new(0, 54, 0, 120)
     buttonFrame.AnchorPoint = Vector2.new(0, 0.5)
-    buttonFrame.Position = UDim2.new(0.5, -290, 0.5, 0)
+    buttonFrame.Position = UDim2.new(0, 10, 0.5, 0) -- lado esquerdo, centralizado verticalmente
     buttonFrame.BackgroundTransparency = 1
     buttonFrame.ZIndex = 10
     buttonFrame.Parent = gui
@@ -113,7 +113,7 @@ function UILibrary:CreateWindow(titleText)
     showBtn.Parent = buttonFrame
 
     local lockBtn = Instance.new("TextButton")
-    lockBtn.Text = "Unlocked"
+    lockBtn.Text = "locked"
     styleSideButton(lockBtn)
     lockBtn.Parent = buttonFrame
 
