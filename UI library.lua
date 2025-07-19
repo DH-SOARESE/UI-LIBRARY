@@ -86,7 +86,7 @@ end
 
 task.spawn(function()
 	while (OrionLib:IsRunning()) do
-		wait()
+		task.wait()
 	end
 
 	for _, Connection in next, OrionLib.Connections do
@@ -95,37 +95,35 @@ task.spawn(function()
 end)
 
 local function AddDraggingFunctionality(DragPoint, Main)
-	pcall(function()
-		local Dragging, DragInput, InitialMousePos, InitialFramePos = false
-		local CurrentInputConnection, InputChangedConnection
+	local Dragging, DragInput, InitialMousePos, InitialFramePos = false
+	local CurrentInputConnection, InputChangedConnection
 
-		local function onInputBegan(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				Dragging = true
-				InitialMousePos = input.Position
-				InitialFramePos = Main.Position
+	local function onInputBegan(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			Dragging = true
+			InitialMousePos = input.Position
+			InitialFramePos = Main.Position
 
-				CurrentInputConnection = input.Changed:Connect(function()
-					if input.UserInputState == Enum.UserInputState.End then
-						Dragging = false
-						if CurrentInputConnection then CurrentInputConnection:Disconnect() end
-						CurrentInputConnection = nil
-					end
-				end)
-			end
+			CurrentInputConnection = input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					Dragging = false
+					if CurrentInputConnection then CurrentInputConnection:Disconnect() end
+					CurrentInputConnection = nil
+				end
+			end)
 		end
+	end
 
-		local function onInputChanged(input)
-			if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-				local Delta = input.Position - InitialMousePos
-				TweenService:Create(Main, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position  = UDim2.new(InitialFramePos.X.Scale,InitialFramePos.X.Offset + Delta.X, InitialFramePos.Y.Scale, InitialFramePos.Y.Offset + Delta.Y)}):Play()
-			end
+	local function onInputChanged(input)
+		if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local Delta = input.Position - InitialMousePos
+			TweenService:Create(Main, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position  = UDim2.new(InitialFramePos.X.Scale,InitialFramePos.X.Offset + Delta.X, InitialFramePos.Y.Scale, InitialFramePos.Y.Offset + Delta.Y)}):Play()
 		end
+	end
 
-		-- Connect for both Mouse and Touch
-		AddConnection(DragPoint.InputBegan, onInputBegan)
-		AddConnection(UserInputService.InputChanged, onInputChanged) -- Listen globally for input changes while dragging
-	end)
+	-- Connect for both Mouse and Touch
+	AddConnection(DragPoint.InputBegan, onInputBegan)
+	AddConnection(UserInputService.InputChanged, onInputChanged) -- Listen globally for input changes while dragging
 end   
 
 local function Create(Name, Properties, Children)
@@ -217,7 +215,7 @@ local function LoadCfg(Config)
 	local Data = HttpService:JSONDecode(Config)
 	table.foreach(Data, function(a,b)
 		if OrionLib.Flags[a] then
-			spawn(function() 
+			task.spawn(function() 
 				if OrionLib.Flags[a].Type == "Colorpicker" then
 					OrionLib.Flags[a]:Set(UnpackColor(b))
 				else
@@ -389,7 +387,7 @@ local NotificationHolder = SetProps(SetChildren(MakeElement("TFrame"), {
 })
 
 function OrionLib:MakeNotification(NotificationConfig)
-	spawn(function()
+	task.spawn(function()
 		NotificationConfig.Name = NotificationConfig.Name or "Notification"
 		NotificationConfig.Content = NotificationConfig.Content or "Test"
 		NotificationConfig.Image = NotificationConfig.Image or "rbxassetid://4384403532"
@@ -434,17 +432,17 @@ function OrionLib:MakeNotification(NotificationConfig)
 
 		TweenService:Create(NotificationFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Position = UDim2.new(0, 0, 0, 0)}):Play()
 
-		wait(NotificationConfig.Time - 0.88)
+		task.wait(NotificationConfig.Time - 0.88)
 		TweenService:Create(NotificationFrame.Icon, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play()
 		TweenService:Create(NotificationFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quint), {BackgroundTransparency = 0.6}):Play()
-		wait(0.3)
+		task.wait(0.3)
 		TweenService:Create(NotificationFrame.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {Transparency = 0.9}):Play()
 		TweenService:Create(NotificationFrame.Title, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {TextTransparency = 0.4}):Play()
 		TweenService:Create(NotificationFrame.Content, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {TextTransparency = 0.5}):Play()
-		wait(0.05)
+		task.wait(0.05)
 
 		NotificationFrame:TweenPosition(UDim2.new(1, 20, 0, 0),'In','Quint',0.8,true)
-		wait(1.35)
+		task.wait(1.35)
 		NotificationFrame:Destroy()
 	end)
 end    
@@ -646,7 +644,6 @@ function OrionLib:MakeWindow(WindowConfig)
 
 	AddDraggingFunctionality(DragPoint, MainWindow)
 
-	-- Change MouseButton1Up to InputEnded for touch support
 	AddConnection(CloseBtn.InputEnded, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			MainWindow.Visible = false
@@ -666,13 +663,12 @@ function OrionLib:MakeWindow(WindowConfig)
 		end
 	end)
 
-	-- Change MouseButton1Up to InputEnded for touch support
 	AddConnection(MinimizeBtn.InputEnded, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			if Minimized then
 				TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 615, 0, 344)}):Play()
 				MinimizeBtn.Ico.Image = "rbxassetid://7072719338"
-				wait(.02)
+				task.wait(.02)
 				MainWindow.ClipsDescendants = false
 				WindowStuff.Visible = true
 				WindowTopBarLine.Visible = true
@@ -682,7 +678,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				MinimizeBtn.Ico.Image = "rbxassetid://7072720870"
 
 				TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, WindowName.TextBounds.X + 140, 0, 50)}):Play()
-				wait(0.1)
+				task.wait(0.1)
 				WindowStuff.Visible = false	
 			end
 			Minimized = not Minimized    
@@ -711,11 +707,11 @@ function OrionLib:MakeWindow(WindowConfig)
 		})
 
 		TweenService:Create(LoadSequenceLogo, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 0, Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
-		wait(0.8)
+		task.wait(0.8)
 		TweenService:Create(LoadSequenceLogo, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -(LoadSequenceText.TextBounds.X/2), 0.5, 0)}):Play()
-		wait(0.3)
+		task.wait(0.3)
 		TweenService:Create(LoadSequenceText, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-		wait(2)
+		task.wait(2)
 		TweenService:Create(LoadSequenceText, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1}):Play()
 		MainWindow.Visible = true
 		LoadSequenceLogo:Destroy()
@@ -780,7 +776,6 @@ function OrionLib:MakeWindow(WindowConfig)
 			Container.Visible = true
 		end    
 
-		-- Change MouseButton1Click to InputEnded for touch support
 		AddConnection(TabFrame.InputEnded, function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				for _, Tab in next, TabHolder:GetChildren() do
@@ -903,7 +898,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				AddConnection(Click.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
-						spawn(function()
+						task.spawn(function()
 							ButtonConfig.Callback()
 						end)
 					end
@@ -1010,7 +1005,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				if ToggleConfig.Flag then
 					OrionLib.Flags[ToggleConfig.Flag] = Toggle
 				end	
-				return Toggle
+				return setmetatable({Frame = ToggleFrame}, {__index = Toggle}) -- Return the frame along with the API
 			end  
 			function ElementFunction:AddSlider(SliderConfig)
 				SliderConfig = SliderConfig or {}
@@ -1174,14 +1169,15 @@ function ElementFunction:AddDropdownOfToggles(DropdownConfig)
     function Dropdown:Refresh(ToggleOptions, Delete)
         if Delete then
             for _,v in pairs(Dropdown.Toggles) do
-                v.Frame:Destroy() -- Destroy the toggle's parent frame
+                if v.Frame and v.Frame.Parent then -- Ensure the frame exists before destroying
+                    v.Frame:Destroy() 
+                end
             end    
             table.clear(Dropdown.Toggles)
         end
         AddToggleOptions(ToggleOptions)
     end  
 
-    -- Change MouseButton1Click to InputEnded for touch support
     AddConnection(Click.InputEnded, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             Dropdown.Toggled = not Dropdown.Toggled
@@ -1309,7 +1305,6 @@ end
 							ClipsDescendants = true
 						}), "Divider")
 
-						-- Change MouseButton1Click to InputEnded for touch support
 						AddConnection(OptionBtn.InputEnded, function(input)
 							if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 								Dropdown:Set(Option)
@@ -1356,7 +1351,6 @@ end
 					return DropdownConfig.Callback(Dropdown.Value)
 				end
 
-				-- Change MouseButton1Click to InputEnded for touch support
 				AddConnection(Click.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						Dropdown.Toggled = not Dropdown.Toggled
@@ -1572,7 +1566,6 @@ end
 					TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Second}):Play()
 				end)
 
-				-- Handle both mouse click and touch tap
 				AddConnection(Click.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
@@ -1596,7 +1589,7 @@ end
 
 				local ColorH, ColorS, ColorV = 1, 1, 1
 				local Colorpicker = {Value = ColorpickerConfig.Default, Toggled = false, Type = "Colorpicker", Save = ColorpickerConfig.Save}
-				local ColorInputConnection, HueInputConnection -- Keep track of these connections
+				local CurrentDraggingConnection = nil -- To manage the input changed connection
 
 				local ColorSelection = Create("ImageLabel", {
 					Size = UDim2.new(0, 18, 0, 18),
@@ -1691,7 +1684,6 @@ end
 					AddThemeObject(MakeElement("Stroke"), "Stroke"),
 				}), "Second")
 
-				-- Change MouseButton1Click to InputEnded for touch support
 				AddConnection(Click.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						Colorpicker.Toggled = not Colorpicker.Toggled
@@ -1725,15 +1717,16 @@ end
 
 				local function startDraggingColor(inputObject, targetFrame)
 					if inputObject.UserInputType == Enum.UserInputType.MouseButton1 or inputObject.UserInputType == Enum.UserInputType.Touch then
-						local connectionRef = nil
-						connectionRef = AddConnection(UserInputService.InputChanged, function(input)
+						if CurrentDraggingConnection then CurrentDraggingConnection:Disconnect() end -- Disconnect previous if any
+						CurrentDraggingConnection = AddConnection(UserInputService.InputChanged, function(input)
 							if input == inputObject then
 								UpdateColorPicker(input.Position, targetFrame)
 							end
 						end)
 						AddConnection(UserInputService.InputEnded, function(input)
 							if input == inputObject then
-								if connectionRef then connectionRef:Disconnect() end
+								if CurrentDraggingConnection then CurrentDraggingConnection:Disconnect() end
+								CurrentDraggingConnection = nil
 							end
 						end)
 						-- Initial update
@@ -1781,7 +1774,7 @@ end
 				Parent = Container
 			}), {
 				AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
-					Size = UDim2.new(1, -12, 0, 16),
+					Size = UDim2.new(1, 0, 0, 16),
 					Position = UDim2.new(0, 0, 0, 3),
 					Font = Enum.Font.GothamSemibold
 				}), "TextDark"),
@@ -1815,8 +1808,8 @@ end
 			for i, v in next, ElementFunction do
 				ElementFunction[i] = function() end
 			end    
-			Container:FindFirstChild("UIListLayout"):Destroy()
-			Container:FindFirstChild("UIPadding"):Destroy()
+			if Container:FindFirstChild("UIListLayout") then Container:FindFirstChild("UIListLayout"):Destroy() end
+			if Container:FindFirstChild("UIPadding") then Container:FindFirstChild("UIPadding"):Destroy() end
 			SetChildren(SetProps(MakeElement("TFrame"), {
 				Size = UDim2.new(1, 0, 1, 0),
 				Parent = ItemParent
