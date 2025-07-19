@@ -1097,6 +1097,111 @@ function OrionLib:MakeWindow(WindowConfig)
 					end
 				end)
 
+						-- Add a new function in ElementFunction:
+function ElementFunction:AddDropdownOfToggles(DropdownConfig)
+    DropdownConfig = DropdownConfig or {}
+    DropdownConfig.Name = DropdownConfig.Name or "Dropdown of Toggles"
+    DropdownConfig.ToggleOptions = DropdownConfig.ToggleOptions or {} -- Array of toggle configs
+    DropdownConfig.Flag = DropdownConfig.Flag or nil
+    DropdownConfig.Save = DropdownConfig.Save or false
+
+    local Dropdown = {Value = {}, Toggled = false, Type = "DropdownOfToggles", Save = DropdownConfig.Save, Toggles = {}}
+    local MaxElements = 5
+
+    local DropdownList = MakeElement("List")
+
+    local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(40, 40, 40), 4), {
+        DropdownList
+    }), {
+        Parent = ItemParent,
+        Position = UDim2.new(0, 0, 0, 38),
+        Size = UDim2.new(1, 0, 1, -38),
+        ClipsDescendants = true
+    }), "Divider")
+
+    local Click = SetProps(MakeElement("Button"), {
+        Size = UDim2.new(1, 0, 1, 0)
+    })
+
+    local DropdownFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+        Size = UDim2.new(1, 0, 0, 38),
+        Parent = ItemParent,
+        ClipsDescendants = true
+    }), {
+        DropdownContainer,
+        SetProps(SetChildren(MakeElement("TFrame"), {
+            AddThemeObject(SetProps(MakeElement("Label", DropdownConfig.Name, 15), {
+                Size = UDim2.new(1, -12, 1, 0),
+                Position = UDim2.new(0, 12, 0, 0),
+                Font = Enum.Font.GothamBold,
+                Name = "Content"
+            }), "Text"),
+            AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
+                Size = UDim2.new(0, 20, 0, 20),
+                AnchorPoint = Vector2.new(0, 0.5),
+                Position = UDim2.new(1, -30, 0.5, 0),
+                ImageColor3 = Color3.fromRGB(240, 240, 240),
+                Name = "Ico"
+            }), "TextDark"),
+            AddThemeObject(SetProps(MakeElement("Frame"), {
+                Size = UDim2.new(1, 0, 0, 1),
+                Position = UDim2.new(0, 0, 1, -1),
+                Name = "Line",
+                Visible = false
+            }), "Stroke"), 
+            Click
+        }), {
+            Size = UDim2.new(1, 0, 0, 38),
+            ClipsDescendants = true,
+            Name = "F"
+        }),
+        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+        MakeElement("Corner")
+    }), "Second")
+
+    AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
+    end)  
+
+    local function AddToggleOptions(ToggleOptions)
+        for _, toggleCfg in pairs(ToggleOptions) do
+            local toggleElement = ElementFunction:AddToggle(toggleCfg) -- Re-use existing AddToggle
+            toggleElement.Frame.Parent = DropdownContainer -- Reparent the toggle frame to the dropdown container
+            table.insert(Dropdown.Toggles, toggleElement)
+        end
+    end	
+
+    function Dropdown:Refresh(ToggleOptions, Delete)
+        if Delete then
+            for _,v in pairs(Dropdown.Toggles) do
+                v.Frame:Destroy() -- Destroy the toggle's parent frame
+            end    
+            table.clear(Dropdown.Toggles)
+        end
+        AddToggleOptions(ToggleOptions)
+    end  
+
+    -- Change MouseButton1Click to InputEnded for touch support
+    AddConnection(Click.InputEnded, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            Dropdown.Toggled = not Dropdown.Toggled
+            DropdownFrame.F.Line.Visible = Dropdown.Toggled
+            TweenService:Create(DropdownFrame.F.Ico,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Rotation = Dropdown.Toggled and 180 or 0}):Play()
+            
+            local desiredHeight = Dropdown.Toggled and DropdownList.AbsoluteContentSize.Y + 38 or 38
+            TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = UDim2.new(1, 0, 0, desiredHeight)}):Play()
+        end
+    end)
+
+    Dropdown:Refresh(DropdownConfig.ToggleOptions, false)
+
+    if DropdownConfig.Flag then				
+        OrionLib.Flags[DropdownConfig.Flag] = Dropdown
+    end
+    return Dropdown
+end
+
+
 				function Slider:Set(Value)
 					self.Value = math.clamp(Round(Value, SliderConfig.Increment), SliderConfig.Min, SliderConfig.Max)
 					TweenService:Create(SliderDrag,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = UDim2.fromScale((self.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min), 1)}):Play()
