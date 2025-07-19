@@ -331,6 +331,7 @@ function UILibrary:CreateWindow(titleText)
             box.Size = UDim2.new(0, 26, 0, 26); box.Position = UDim2.new(0, 0, 0, 5)
             box.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
             box.BorderSizePixel = 0; box.AutoButtonColor = true
+            Box.Text = ""
             local boxCorner = Instance.new("UICorner", box); boxCorner.CornerRadius = UDim.new(0, 8)
 
             local tick = Instance.new("Frame", box)
