@@ -9,15 +9,15 @@ function UILibrary:CreateWindow(titleText)
     gui.ResetOnSpawn = false
 
     local main = Instance.new("Frame", gui)
-    main.Size = UDim2.new(0, 570, 0, 444)
-    main.Position = UDim2.new(0.5, -285, 0.5, -222)
+    main.Size = UDim2.new(0, 540, 0, 420)
+    main.Position = UDim2.new(0.5, -270, 0.5, -210)
     main.BackgroundColor3 = Color3.fromRGB(36, 38, 43)
     main.BorderSizePixel = 0
     main.Active = true
     main.Draggable = true
 
     local corner = Instance.new("UICorner", main)
-    corner.CornerRadius = UDim.new(0, 12)
+    corner.CornerRadius = UDim.new(0, 10)
 
     local stroke = Instance.new("UIStroke", main)
     stroke.Color = Color3.fromRGB(0, 120, 255)
@@ -42,10 +42,30 @@ function UILibrary:CreateWindow(titleText)
     title.TextXAlignment = Enum.TextXAlignment.Center
     title.ZIndex = 2
 
-    -- Botões laterais à ESQUERDA
-    local buttonFrame = Instance.new("Frame", main)
-    buttonFrame.Size = UDim2.new(0, 124, 0, 120)
-    buttonFrame.Position = UDim2.new(0, -124, 0.5, -60)
+    -- Tabs
+    local tabsHolder = Instance.new("Frame", main)
+    tabsHolder.Size = UDim2.new(1, -24, 0, 36)
+    tabsHolder.Position = UDim2.new(0, 12, 0, 54)
+    tabsHolder.BackgroundTransparency = 1
+    tabsHolder.ZIndex = 2
+    local tabLayout = Instance.new("UIListLayout", tabsHolder)
+    tabLayout.FillDirection = Enum.FillDirection.Horizontal
+    tabLayout.Padding = UDim.new(0, 8)
+    tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+    local contentHolder = Instance.new("Frame", main)
+    contentHolder.Position = UDim2.new(0, 0, 0, 96)
+    contentHolder.Size = UDim2.new(1, 0, 1, -96)
+    contentHolder.BackgroundTransparency = 1
+    contentHolder.ZIndex = 2
+
+    local tabs = {}
+
+    -- Botões externos (centralizados verticalmente à esquerda do menu)
+    local buttonFrame = Instance.new("Frame", gui)
+    buttonFrame.Size = UDim2.new(0, 54, 0, 120)
+    buttonFrame.AnchorPoint = Vector2.new(0, 0.5)
+    buttonFrame.Position = UDim2.new(0.5, -290, 0.5, 0) -- ao lado esquerdo do menu, central verticalmente
     buttonFrame.BackgroundTransparency = 1
     buttonFrame.ZIndex = 10
 
@@ -62,7 +82,7 @@ function UILibrary:CreateWindow(titleText)
         btn.AutoButtonColor = true
         btn.Font = Enum.Font.GothamBold
         btn.TextSize = 16
-        btn.Size = UDim2.new(1, -8, 0, 44)
+        btn.Size = UDim2.new(1, 0, 0, 44)
         local btnCorner = Instance.new("UICorner", btn)
         btnCorner.CornerRadius = UDim.new(0, 8)
         btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70) end)
@@ -89,30 +109,11 @@ function UILibrary:CreateWindow(titleText)
         lockBtn.Text = locked and "Locked" or "Unlocked"
     end)
 
-    -- Tabs
-    local tabsHolder = Instance.new("Frame", main)
-    tabsHolder.Size = UDim2.new(1, -24, 0, 36)
-    tabsHolder.Position = UDim2.new(0, 12, 0, 54)
-    tabsHolder.BackgroundTransparency = 1
-    tabsHolder.ZIndex = 2
-    local tabLayout = Instance.new("UIListLayout", tabsHolder)
-    tabLayout.FillDirection = Enum.FillDirection.Horizontal
-    tabLayout.Padding = UDim.new(0, 8)
-    tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-    local contentHolder = Instance.new("Frame", main)
-    contentHolder.Position = UDim2.new(0, 0, 0, 96)
-    contentHolder.Size = UDim2.new(1, 0, 1, -96)
-    contentHolder.BackgroundTransparency = 1
-    contentHolder.ZIndex = 2
-
-    local tabs = {}
-
     -- Criação de aba
-    function UILibrary:CreateTab(tabTitle)
+    function UILibrary:CreateTab(name)
         local btn = Instance.new("TextButton", tabsHolder)
         btn.Size = UDim2.new(0, 104, 1, 0)
-        btn.Text = tabTitle
+        btn.Text = name
         btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
         btn.TextColor3 = Color3.new(1, 1, 1)
         btn.BorderSizePixel = 0
@@ -130,76 +131,42 @@ function UILibrary:CreateWindow(titleText)
         tabContent.BackgroundTransparency = 1
         tabContent.ZIndex = 3
 
-        -- Layout principal da aba, borda e título dinâmico
-        local layoutHolder = Instance.new("Frame", tabContent)
-        layoutHolder.Size = UDim2.new(1, -24, 1, -24)
-        layoutHolder.Position = UDim2.new(0, 12, 0, 12)
-        layoutHolder.BackgroundColor3 = Color3.fromRGB(44, 46, 54)
-        layoutHolder.BorderSizePixel = 0
-        local layoutCorner = Instance.new("UICorner", layoutHolder)
-        layoutCorner.CornerRadius = UDim.new(0, 10)
-        local layoutStroke = Instance.new("UIStroke", layoutHolder)
-        layoutStroke.Color = Color3.fromRGB(0, 120, 255)
-        layoutStroke.Thickness = 1
-        layoutStroke.Transparency = 0.3
+        local leftTitle = Instance.new("TextLabel", tabContent)
+        leftTitle.Size = UDim2.new(0.5, -10, 0, 24)
+        leftTitle.Position = UDim2.new(0, 10, 0, 0)
+        leftTitle.Text = "Seção Esquerda"
+        leftTitle.TextColor3 = Color3.new(1, 1, 1)
+        leftTitle.BackgroundTransparency = 1
+        leftTitle.Font = Enum.Font.GothamBold
+        leftTitle.TextSize = 15
+        leftTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-        local layoutTitle = Instance.new("TextLabel", layoutHolder)
-        layoutTitle.Size = UDim2.new(1, -20, 0, 32)
-        layoutTitle.Position = UDim2.new(0, 10, 0, 6)
-        layoutTitle.BackgroundTransparency = 1
-        layoutTitle.Text = tabTitle .. " - Seções"
-        layoutTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-        layoutTitle.Font = Enum.Font.GothamBold
-        layoutTitle.TextSize = 18
-        layoutTitle.TextXAlignment = Enum.TextXAlignment.Left
+        local rightTitle = leftTitle:Clone()
+        rightTitle.Parent = tabContent
+        rightTitle.Position = UDim2.new(0.5, 0, 0, 0)
+        rightTitle.Text = "Seção Direita"
+        rightTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-        -- Seções (esquerda/direita) com título dinâmico
-        local sectionSpacing = 8
-        local sectionWidth = (layoutHolder.Size.X.Offset - sectionSpacing) / 2
+        local leftScroll = Instance.new("ScrollingFrame", tabContent)
+        leftScroll.Position = UDim2.new(0, 10, 0, 28)
+        leftScroll.Size = UDim2.new(0.5, -16, 1, -38)
+        leftScroll.CanvasSize = UDim2.new(0, 0, 5, 0)
+        leftScroll.ScrollBarThickness = 6
+        leftScroll.BackgroundColor3 = Color3.fromRGB(40, 41, 47)
+        leftScroll.BorderSizePixel = 0
+        local leftCorner = Instance.new("UICorner", leftScroll)
+        leftCorner.CornerRadius = UDim.new(0, 8)
 
-        local function createSection(sectionTitle, pos, name)
-            local sectionFrame = Instance.new("Frame", layoutHolder)
-            sectionFrame.Size = UDim2.new(0.5, -sectionSpacing/2, 1, -50)
-            sectionFrame.Position = UDim2.new(pos, sectionSpacing/2, 0, 42)
-            sectionFrame.BackgroundColor3 = Color3.fromRGB(52, 54, 62)
-            sectionFrame.BorderSizePixel = 0
-            local sectionCorner = Instance.new("UICorner", sectionFrame)
-            sectionCorner.CornerRadius = UDim.new(0, 8)
-            local sectionStroke = Instance.new("UIStroke", sectionFrame)
-            sectionStroke.Color = Color3.fromRGB(0, 120, 255)
-            sectionStroke.Thickness = 1
-            sectionStroke.Transparency = 0.15
+        local rightScroll = leftScroll:Clone()
+        rightScroll.Parent = tabContent
+        rightScroll.Position = UDim2.new(0.5, 6, 0, 28)
+        local rightCorner = Instance.new("UICorner", rightScroll)
+        rightCorner.CornerRadius = UDim.new(0, 8)
 
-            local sectionT = Instance.new("TextLabel", sectionFrame)
-            sectionT.Name = "SectionTitle"
-            sectionT.Size = UDim2.new(1, -12, 0, 24)
-            sectionT.Position = UDim2.new(0, 6, 0, 6)
-            sectionT.BackgroundTransparency = 1
-            sectionT.Text = sectionTitle
-            sectionT.TextColor3 = Color3.new(1, 1, 1)
-            sectionT.Font = Enum.Font.GothamBold
-            sectionT.TextSize = 16
-            sectionT.TextXAlignment = Enum.TextXAlignment.Left
-
-            local scroll = Instance.new("ScrollingFrame", sectionFrame)
-            scroll.Name = name .. "Scroll"
-            scroll.Position = UDim2.new(0, 6, 0, 34)
-            scroll.Size = UDim2.new(1, -12, 1, -44)
-            scroll.CanvasSize = UDim2.new(0, 0, 5, 0)
-            scroll.ScrollBarThickness = 6
-            scroll.BackgroundColor3 = Color3.fromRGB(40, 41, 47)
-            scroll.BorderSizePixel = 0
-            local scrollCorner = Instance.new("UICorner", scroll)
-            scrollCorner.CornerRadius = UDim.new(0, 8)
-            local scrollLayout = Instance.new("UIListLayout", scroll)
-            scrollLayout.Padding = UDim.new(0, 8)
-            scrollLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-            return scroll, sectionT
-        end
-
-        local leftScroll, leftTitle = createSection(tabTitle .. " - Esquerda", 0, "Left")
-        local rightScroll, rightTitle = createSection(tabTitle .. " - Direita", 0.5, "Right")
+        local leftLayout = Instance.new("UIListLayout", leftScroll); leftLayout.Padding = UDim.new(0, 6)
+        local rightLayout = Instance.new("UIListLayout", rightScroll); rightLayout.Padding = UDim.new(0, 6)
+        leftLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        rightLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
         btn.MouseButton1Click:Connect(function()
             for _, t in pairs(tabs) do t.Visible = false end
@@ -208,18 +175,6 @@ function UILibrary:CreateWindow(titleText)
         table.insert(tabs, tabContent)
 
         local api = {}
-
-        -- Permite definir dinamicamente título das seções/layout
-        function api:SetSectionTitle(side, txt)
-            if side == "Right" then
-                rightTitle.Text = txt
-            else
-                leftTitle.Text = txt
-            end
-        end
-        function api:SetLayoutTitle(txt)
-            layoutTitle.Text = txt
-        end
 
         local function addHover(btn)
             btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70) end)
@@ -233,7 +188,11 @@ function UILibrary:CreateWindow(titleText)
             b.BackgroundColor3 = Color3.fromRGB(60, 60, 60); b.TextColor3 = Color3.new(1, 1, 1)
             b.BorderSizePixel = 0; b.AutoButtonColor = true; b.Font = Enum.Font.Gotham; b.TextSize = 15
             local bCorner = Instance.new("UICorner", b); bCorner.CornerRadius = UDim.new(0, 8)
-            addHover(b); b.MouseButton1Click:Connect(callback)
+            addHover(b); b.MouseButton1Click:Connect(function()
+                if typeof(callback) == "function" then
+                    callback()
+                end
+            end)
         end
 
         function api:AddToggle(text, default, callback, side)
@@ -246,7 +205,13 @@ function UILibrary:CreateWindow(titleText)
             local state = default or false
             local function update() t.Text = text .. ": " .. (state and "ON" or "OFF") end
             update(); addHover(t)
-            t.MouseButton1Click:Connect(function() state = not state; update(); callback(state) end)
+            t.MouseButton1Click:Connect(function()
+                state = not state
+                update()
+                if typeof(callback) == "function" then
+                    callback(state)
+                end
+            end)
         end
 
         function api:AddDropdown(text, options, callback, side)
@@ -279,7 +244,9 @@ function UILibrary:CreateWindow(titleText)
                     opt.MouseButton1Click:Connect(function()
                         d.Text = text .. ": " .. val
                         closeAll()
-                        callback(val)
+                        if typeof(callback) == "function" then
+                            callback(val)
+                        end
                     end)
                     table.insert(dropdowns, opt)
                 end
@@ -295,7 +262,13 @@ function UILibrary:CreateWindow(titleText)
             dt.Text = text .. ": OFF"; dt.BorderSizePixel = 0; dt.Font = Enum.Font.Gotham; dt.TextSize = 15
             dt.AutoButtonColor = true; local dtCorner = Instance.new("UICorner", dt); dtCorner.CornerRadius = UDim.new(0, 8)
             addHover(dt)
-            dt.MouseButton1Click:Connect(function() state = not state; dt.Text = text .. ": " .. (state and "ON" or "OFF"); callback(state) end)
+            dt.MouseButton1Click:Connect(function()
+                state = not state
+                dt.Text = text .. ": " .. (state and "ON" or "OFF")
+                if typeof(callback) == "function" then
+                    callback(state)
+                end
+            end)
         end
 
         function api:AddSlider(text, min, max, default, callback, side)
@@ -326,12 +299,27 @@ function UILibrary:CreateWindow(titleText)
                 local val = math.floor(min + (max - min) * pct)
                 fill.Size = UDim2.new(pct, 0, 1, 0)
                 label.Text = text .. ": " .. val
-                callback(val)
+                if typeof(callback) == "function" then
+                    callback(val)
+                end
             end
 
-            bar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true; update(i.Position.X) end end)
-            bar.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then update(i.Position.X) end end)
-            bar.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
+            bar.InputBegan:Connect(function(i)
+                if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    update(i.Position.X)
+                end
+            end)
+            bar.InputChanged:Connect(function(i)
+                if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+                    update(i.Position.X)
+                end
+            end)
+            bar.InputEnded:Connect(function(i)
+                if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+                    dragging = false
+                end
+            end)
         end
 
         function api:AddCheckBox(text, default, callback, side)
@@ -347,7 +335,7 @@ function UILibrary:CreateWindow(titleText)
 
             local tick = Instance.new("Frame", box)
             tick.Size = default and UDim2.new(1, -6, 1, -6) or UDim2.new(0, 0, 0, 0)
-            tick.Position = UDim2.new(0, 3, 0, 3)
+            tick.Position = default and UDim2.new(0, 3, 0, 3) or UDim2.new(0, 0, 0, 0)
             tick.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
             local tickCorner = Instance.new("UICorner", tick); tickCorner.CornerRadius = UDim.new(0, 6)
 
@@ -361,7 +349,9 @@ function UILibrary:CreateWindow(titleText)
                 state = not state
                 tick.Size = state and UDim2.new(1, -6, 1, -6) or UDim2.new(0, 0, 0, 0)
                 tick.Position = state and UDim2.new(0, 3, 0, 3) or UDim2.new(0, 0, 0, 0)
-                callback(state)
+                if typeof(callback) == "function" then
+                    callback(state)
+                end
             end)
         end
 
