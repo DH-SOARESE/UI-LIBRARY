@@ -1746,252 +1746,250 @@ function OrionLib:MakeWindow(WindowConfig)
 		return ElementFunction   
 	end  
 
-			-- ... (your existing code) ...
+	function ElementFunction:AddToggleDropdown(ToggleDropdownConfig)
+		ToggleDropdownConfig = ToggleDropdownConfig or {}
+		ToggleDropdownConfig.Name = ToggleDropdownConfig.Name or "Toggle Dropdown"
+		ToggleDropdownConfig.Options = ToggleDropdownConfig.Options or {}
+		ToggleDropdownConfig.Default = ToggleDropdownConfig.Default or ""
+		ToggleDropdownConfig.Callback = ToggleDropdownConfig.Callback or function(toggled, value) end -- Ensure callback accepts two arguments
+		ToggleDropdownConfig.Flag = ToggleDropdownConfig.Flag or nil
+		ToggleDropdownConfig.Save = ToggleDropdownConfig.Save or false
+		ToggleDropdownConfig.DefaultToggle = ToggleDropdownConfig.DefaultToggle or false -- New: Default state for the toggle
 
-			function ElementFunction:AddToggleDropdown(ToggleDropdownConfig)
-				ToggleDropdownConfig = ToggleDropdownConfig or {}
-				ToggleDropdownConfig.Name = ToggleDropdownConfig.Name or "Toggle Dropdown"
-				ToggleDropdownConfig.Options = ToggleDropdownConfig.Options or {}
-				ToggleDropdownConfig.Default = ToggleDropdownConfig.Default or ""
-				ToggleDropdownConfig.Callback = ToggleDropdownConfig.Callback or function() end
-				ToggleDropdownConfig.Flag = ToggleDropdownConfig.Flag or nil
-				ToggleDropdownConfig.Save = ToggleDropdownConfig.Save or false
-				ToggleDropdownConfig.DefaultToggle = ToggleDropdownConfig.DefaultToggle or false -- New: Default state for the toggle
+		local ToggleDropdown = {
+			Value = ToggleDropdownConfig.Default,
+			Options = ToggleDropdownConfig.Options,
+			Buttons = {},
+			Toggled = ToggleDropdownConfig.DefaultToggle, -- Initial toggle state
+			DropdownVisible = false, -- Controls dropdown list visibility
+			Type = "ToggleDropdown",
+			Save = ToggleDropdownConfig.Save
+		}
+		local MaxElements = 5
 
-				local ToggleDropdown = {
-					Value = ToggleDropdownConfig.Default,
-					Options = ToggleDropdownConfig.Options,
-					Buttons = {},
-					Toggled = ToggleDropdownConfig.DefaultToggle, -- Initial toggle state
-					DropdownVisible = false, -- Controls dropdown list visibility
-					Type = "ToggleDropdown",
-					Save = ToggleDropdownConfig.Save
-				}
-				local MaxElements = 5
+		if not table.find(ToggleDropdown.Options, ToggleDropdown.Value) then
+			ToggleDropdown.Value = "..."
+		end
 
-				if not table.find(ToggleDropdown.Options, ToggleDropdown.Value) then
-					ToggleDropdown.Value = "..."
+		local DropdownList = MakeElement("List")
+
+		local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(40, 40, 40), 4), {
+			DropdownList
+		}), {
+			Parent = ItemParent,
+			Position = UDim2.new(0, 0, 0, 38),
+			Size = UDim2.new(1, 0, 1, -38),
+			ClipsDescendants = true,
+			Visible = false -- Initially hidden
+		}), "Divider")
+
+		local Click = SetProps(MakeElement("Button"), {
+			Size = UDim2.new(1, 0, 1, 0)
+		})
+
+		local DropdownFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+			Size = UDim2.new(1, 0, 0, 38),
+			Parent = ItemParent,
+			ClipsDescendants = true
+		}), {
+			DropdownContainer,
+			SetProps(SetChildren(MakeElement("TFrame"), {
+				AddThemeObject(SetProps(MakeElement("Label", ToggleDropdownConfig.Name, 15), {
+					Size = UDim2.new(1, -12, 1, 0),
+					Position = UDim2.new(0, 12, 0, 0),
+					Font = Enum.Font.GothamBold,
+					Name = "Content"
+				}), "Text"),
+				AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
+					Size = UDim2.new(0, 20, 0, 20),
+					AnchorPoint = Vector2.new(0, 0.5),
+					Position = UDim2.new(1, -55, 0.5, 0), -- Adjusted position for dropdown arrow
+					ImageColor3 = Color3.fromRGB(240, 240, 240),
+					Name = "Ico"
+				}), "TextDark"),
+				AddThemeObject(SetProps(MakeElement("Label", "Selected", 13), {
+					Size = UDim2.new(1, -70, 1, 0), -- Adjusted size to accommodate toggle and arrow
+					Font = Enum.Font.Gotham,
+					Name = "Selected",
+					TextXAlignment = Enum.TextXAlignment.Right
+				}), "TextDark"),
+				AddThemeObject(SetProps(MakeElement("Frame"), {
+					Size = UDim2.new(1, 0, 0, 1),
+					Position = UDim2.new(0, 0, 1, -1),
+					Name = "Line",
+					Visible = false
+				}), "Stroke"),
+				Click
+			}), {
+				Size = UDim2.new(1, 0, 0, 38),
+				ClipsDescendants = true,
+				Name = "F"
+			}),
+			AddThemeObject(MakeElement("Stroke"), "Stroke"),
+			MakeElement("Corner")
+		}), "Second")
+
+		AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+			DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
+		end)
+
+		-- ToggleBox and its components for the "on/off" state
+		local ToggleBoxColor = ToggleDropdownConfig.Color or Color3.fromRGB(9, 99, 195)
+
+		local ToggleBox = SetChildren(SetProps(MakeElement("RoundFrame", ToggleBoxColor, 0, 4), {
+			Size = UDim2.new(0, 24, 0, 24),
+			Position = UDim2.new(1, -28, 0.5, 0), -- Adjusted position to be right of dropdown arrow
+			AnchorPoint = Vector2.new(0.5, 0.5)
+		}), {
+			SetProps(MakeElement("Stroke"), {
+				Color = ToggleBoxColor,
+				Name = "Stroke",
+				Transparency = 0.5
+			}),
+			SetProps(MakeElement("Image", "rbxassetid://3944680095"), {
+				Size = UDim2.new(0, 20, 0, 20),
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(0.5, 0, 0.5, 0),
+				ImageColor3 = Color3.fromRGB(255, 255, 255),
+				Name = "Ico"
+			}),
+		})
+		ToggleBox.Parent = DropdownFrame.F -- Parent the toggle box to the main frame of the dropdown
+
+		local function updateToggleVisuals()
+			TweenService:Create(ToggleBox, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = ToggleDropdown.Toggled and ToggleBoxColor or OrionLib.Themes.Default.Divider}):Play()
+			TweenService:Create(ToggleBox.Stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Color = ToggleDropdown.Toggled and ToggleBoxColor or OrionLib.Themes.Default.Stroke}):Play()
+			TweenService:Create(ToggleBox.Ico, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = ToggleDropdown.Toggled and 0 or 1, Size = ToggleDropdown.Toggled and UDim2.new(0, 20, 0, 20) or UDim2.new(0, 8, 0, 8)}):Play()
+			
+			-- Show/hide dropdown list and its related visuals based on the toggle state
+			DropdownContainer.Visible = ToggleDropdown.Toggled and ToggleDropdown.DropdownVisible
+			DropdownFrame.F.Ico.Visible = ToggleDropdown.Toggled
+			DropdownFrame.F.Selected.Visible = ToggleDropdown.Toggled
+
+			if ToggleDropdown.Toggled then
+				if #ToggleDropdown.Options > MaxElements then
+					TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleDropdown.DropdownVisible and UDim2.new(1, 0, 0, 38 + (MaxElements * 28)) or UDim2.new(1, 0, 0, 38)}):Play()
+				else
+					TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleDropdown.DropdownVisible and UDim2.new(1, 0, 0, DropdownList.AbsoluteContentSize.Y + 38) or UDim2.new(1, 0, 0, 38)}):Play()
 				end
+			else
+				-- Collapse and hide dropdown if toggle is off
+				TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = UDim2.new(1, 0, 0, 38)}):Play()
+				ToggleDropdown.DropdownVisible = false -- Ensure dropdown is collapsed when toggle is off
+				DropdownContainer.Visible = false
+				DropdownFrame.F.Line.Visible = false
+				TweenService:Create(DropdownFrame.F.Ico,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Rotation = 0}):Play()
+			end
 
-				local DropdownList = MakeElement("List")
+			ToggleDropdownConfig.Callback(ToggleDropdown.Toggled, ToggleDropdown.Value)
+		end
 
-				local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(40, 40, 40), 4), {
-					DropdownList
+		local function AddOptions(Options)
+			for _, Option in pairs(Options) do
+				local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(40, 40, 40)), {
+					MakeElement("Corner", 0, 6),
+					AddThemeObject(SetProps(MakeElement("Label", Option, 13, 0.4), {
+						Position = UDim2.new(0, 8, 0, 0),
+						Size = UDim2.new(1, -8, 1, 0),
+						Name = "Title"
+					}), "Text")
 				}), {
-					Parent = ItemParent,
-					Position = UDim2.new(0, 0, 0, 38),
-					Size = UDim2.new(1, 0, 1, -38),
-					ClipsDescendants = true,
-					Visible = false -- Initially hidden
+					Parent = DropdownContainer,
+					Size = UDim2.new(1, 0, 0, 28),
+					BackgroundTransparency = 1,
+					ClipsDescendants = true
 				}), "Divider")
 
-				local Click = SetProps(MakeElement("Button"), {
-					Size = UDim2.new(1, 0, 1, 0)
-				})
-
-				local DropdownFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
-					Size = UDim2.new(1, 0, 0, 38),
-					Parent = ItemParent,
-					ClipsDescendants = true
-				}), {
-					DropdownContainer,
-					SetProps(SetChildren(MakeElement("TFrame"), {
-						AddThemeObject(SetProps(MakeElement("Label", ToggleDropdownConfig.Name, 15), {
-							Size = UDim2.new(1, -12, 1, 0),
-							Position = UDim2.new(0, 12, 0, 0),
-							Font = Enum.Font.GothamBold,
-							Name = "Content"
-						}), "Text"),
-						AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
-							Size = UDim2.new(0, 20, 0, 20),
-							AnchorPoint = Vector2.new(0, 0.5),
-							Position = UDim2.new(1, -30, 0.5, 0),
-							ImageColor3 = Color3.fromRGB(240, 240, 240),
-							Name = "Ico"
-						}), "TextDark"),
-						AddThemeObject(SetProps(MakeElement("Label", "Selected", 13), {
-							Size = UDim2.new(1, -40, 1, 0),
-							Font = Enum.Font.Gotham,
-							Name = "Selected",
-							TextXAlignment = Enum.TextXAlignment.Right
-						}), "TextDark"),
-						AddThemeObject(SetProps(MakeElement("Frame"), {
-							Size = UDim2.new(1, 0, 0, 1),
-							Position = UDim2.new(0, 0, 1, -1),
-							Name = "Line",
-							Visible = false
-						}), "Stroke"),
-						Click
-					}), {
-						Size = UDim2.new(1, 0, 0, 38),
-						ClipsDescendants = true,
-						Name = "F"
-					}),
-					AddThemeObject(MakeElement("Stroke"), "Stroke"),
-					MakeElement("Corner")
-				}), "Second")
-
-				AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-					DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
-				end)
-
-				-- ToggleBox and its components for the "on/off" state
-				local ToggleBoxColor = ToggleDropdownConfig.Color or Color3.fromRGB(9, 99, 195)
-
-				local ToggleBox = SetChildren(SetProps(MakeElement("RoundFrame", ToggleBoxColor, 0, 4), {
-					Size = UDim2.new(0, 24, 0, 24),
-					Position = UDim2.new(1, -36, 0.5, 0), -- Adjusted position to not overlap with dropdown arrow
-					AnchorPoint = Vector2.new(0.5, 0.5)
-				}), {
-					SetProps(MakeElement("Stroke"), {
-						Color = ToggleBoxColor,
-						Name = "Stroke",
-						Transparency = 0.5
-					}),
-					SetProps(MakeElement("Image", "rbxassetid://3944680095"), {
-						Size = UDim2.new(0, 20, 0, 20),
-						AnchorPoint = Vector2.new(0.5, 0.5),
-						Position = UDim2.new(0.5, 0, 0.5, 0),
-						ImageColor3 = Color3.fromRGB(255, 255, 255),
-						Name = "Ico"
-					}),
-				})
-				ToggleBox.Parent = DropdownFrame.F -- Parent the toggle box to the main frame of the dropdown
-
-				local function updateToggleVisuals()
-					TweenService:Create(ToggleBox, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = ToggleDropdown.Toggled and ToggleBoxColor or OrionLib.Themes.Default.Divider}):Play()
-					TweenService:Create(ToggleBox.Stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Color = ToggleDropdown.Toggled and ToggleBoxColor or OrionLib.Themes.Default.Stroke}):Play()
-					TweenService:Create(ToggleBox.Ico, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = ToggleDropdown.Toggled and 0 or 1, Size = ToggleDropdown.Toggled and UDim2.new(0, 20, 0, 20) or UDim2.new(0, 8, 0, 8)}):Play()
-					
-					-- Show/hide dropdown list based on the toggle state
-					DropdownContainer.Visible = ToggleDropdown.Toggled and ToggleDropdown.DropdownVisible
-					DropdownFrame.F.Ico.Visible = ToggleDropdown.Toggled
-					DropdownFrame.F.Selected.Visible = ToggleDropdown.Toggled
-
-					if ToggleDropdown.Toggled then
-						if #ToggleDropdown.Options > MaxElements then
-							TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleDropdown.DropdownVisible and UDim2.new(1, 0, 0, 38 + (MaxElements * 28)) or UDim2.new(1, 0, 0, 38)}):Play()
-						else
-							TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleDropdown.DropdownVisible and UDim2.new(1, 0, 0, DropdownList.AbsoluteContentSize.Y + 38) or UDim2.new(1, 0, 0, 38)}):Play()
-						end
-					else
-						TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = UDim2.new(1, 0, 0, 38)}):Play()
-					end
-
-					ToggleDropdownConfig.Callback(ToggleDropdown.Toggled, ToggleDropdown.Value)
-				end
-
-				local function AddOptions(Options)
-					for _, Option in pairs(Options) do
-						local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(40, 40, 40)), {
-							MakeElement("Corner", 0, 6),
-							AddThemeObject(SetProps(MakeElement("Label", Option, 13, 0.4), {
-								Position = UDim2.new(0, 8, 0, 0),
-								Size = UDim2.new(1, -8, 1, 0),
-								Name = "Title"
-							}), "Text")
-						}), {
-							Parent = DropdownContainer,
-							Size = UDim2.new(1, 0, 0, 28),
-							BackgroundTransparency = 1,
-							ClipsDescendants = true
-						}), "Divider")
-
-						AddConnection(OptionBtn.InputEnded, function(input)
-							if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-								ToggleDropdown:Set(Option)
-								SaveCfg(game.GameId)
-							end
-						end)
-
-						ToggleDropdown.Buttons[Option] = OptionBtn
-					end
-				end
-
-				function ToggleDropdown:Refresh(Options, Delete)
-					if Delete then
-						for _,v in pairs(ToggleDropdown.Buttons) do
-							v:Destroy()
-						end
-						table.clear(ToggleDropdown.Options)
-						table.clear(ToggleDropdown.Buttons)
-					end
-					ToggleDropdown.Options = Options
-					AddOptions(ToggleDropdown.Options)
-					updateToggleVisuals() -- Update visuals after refreshing options
-				end
-
-				function ToggleDropdown:Set(Value)
-					if not table.find(ToggleDropdown.Options, Value) then
-						ToggleDropdown.Value = "..."
-						DropdownFrame.F.Selected.Text = ToggleDropdown.Value
-						for _, v in pairs(ToggleDropdown.Buttons) do
-							TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
-							TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
-						end
-						return
-					end
-
-					ToggleDropdown.Value = Value
-					DropdownFrame.F.Selected.Text = ToggleDropdown.Value
-
-					for _, v in pairs(ToggleDropdown.Buttons) do
-						TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
-						TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
-					end
-					TweenService:Create(ToggleDropdown.Buttons[Value],TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 0}):Play()
-					TweenService:Create(ToggleDropdown.Buttons[Value].Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0}):Play()
-					
-					ToggleDropdownConfig.Callback(ToggleDropdown.Toggled, ToggleDropdown.Value)
-				end
-
-				-- Main click handler for the dropdown header
-				AddConnection(Click.InputEnded, function(input)
+				AddConnection(OptionBtn.InputEnded, function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						if ToggleDropdown.Toggled then -- Only open/close dropdown if the main toggle is ON
-							ToggleDropdown.DropdownVisible = not ToggleDropdown.DropdownVisible
-							DropdownFrame.F.Line.Visible = ToggleDropdown.DropdownVisible
-							TweenService:Create(DropdownFrame.F.Ico,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Rotation = ToggleDropdown.DropdownVisible and 180 or 0}):Play()
-							
-							if #ToggleDropdown.Options > MaxElements then
-								TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleDropdown.DropdownVisible and UDim2.new(1, 0, 0, 38 + (MaxElements * 28)) or UDim2.new(1, 0, 0, 38)}):Play()
-							else
-								TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleDropdown.DropdownVisible and UDim2.new(1, 0, 0, DropdownList.AbsoluteContentSize.Y + 38) or UDim2.new(1, 0, 0, 38)}):Play()
-							end
-							DropdownContainer.Visible = ToggleDropdown.DropdownVisible
-						end
-					end
-				end)
-
-				-- Click handler for the toggle box itself
-				AddConnection(ToggleBox.InputEnded, function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						ToggleDropdown.Toggled = not ToggleDropdown.Toggled
-						updateToggleVisuals()
+						ToggleDropdown:Set(Option)
 						SaveCfg(game.GameId)
 					end
 				end)
 
-				ToggleDropdown:Refresh(ToggleDropdown.Options, false)
-				ToggleDropdown:Set(ToggleDropdown.Value) -- Set initial dropdown value
-				updateToggleVisuals() -- Apply initial toggle state
+				ToggleDropdown.Buttons[Option] = OptionBtn
+			end
+		end
 
-				if ToggleDropdownConfig.Flag then
-					OrionLib.Flags[ToggleDropdownConfig.Flag] = ToggleDropdown
+		function ToggleDropdown:Refresh(Options, Delete)
+			if Delete then
+				for _,v in pairs(ToggleDropdown.Buttons) do
+					v:Destroy()
 				end
-				return ToggleDropdown
+				table.clear(ToggleDropdown.Options)
+				table.clear(ToggleDropdown.Buttons)
+			end
+			ToggleDropdown.Options = Options
+			AddOptions(ToggleDropdown.Options)
+			updateToggleVisuals() -- Update visuals after refreshing options
+		end
+
+		function ToggleDropdown:Set(Value)
+			if not table.find(ToggleDropdown.Options, Value) then
+				ToggleDropdown.Value = "..."
+				DropdownFrame.F.Selected.Text = ToggleDropdown.Value
+				for _, v in pairs(ToggleDropdown.Buttons) do
+					TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
+					TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
+				end
+				return
 			end
 
--- ... (rest of your existing code) ...
+			ToggleDropdown.Value = Value
+			DropdownFrame.F.Selected.Text = ToggleDropdown.Value
 
-	
+			for _, v in pairs(ToggleDropdown.Buttons) do
+				TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
+				TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
+			end
+			TweenService:Create(ToggleDropdown.Buttons[Value],TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 0}):Play()
+			TweenService:Create(ToggleDropdown.Buttons[Value].Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0}):Play()
+			
+			ToggleDropdownConfig.Callback(ToggleDropdown.Toggled, ToggleDropdown.Value)
+		end
+
+		-- Main click handler for the dropdown header (to open/close the dropdown list)
+		AddConnection(Click.InputEnded, function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				if ToggleDropdown.Toggled then -- Only open/close dropdown if the main toggle is ON
+					ToggleDropdown.DropdownVisible = not ToggleDropdown.DropdownVisible
+					DropdownFrame.F.Line.Visible = ToggleDropdown.DropdownVisible
+					TweenService:Create(DropdownFrame.F.Ico,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Rotation = ToggleDropdown.DropdownVisible and 180 or 0}):Play()
+					
+					if #ToggleDropdown.Options > MaxElements then
+						TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleDropdown.DropdownVisible and UDim2.new(1, 0, 0, 38 + (MaxElements * 28)) or UDim2.new(1, 0, 0, 38)}):Play()
+					else
+						TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = ToggleDropdown.DropdownVisible and UDim2.new(1, 0, 0, DropdownList.AbsoluteContentSize.Y + 38) or UDim2.new(1, 0, 0, 38)}):Play()
+					end
+					DropdownContainer.Visible = ToggleDropdown.DropdownVisible
+				end
+			end
+		end)
+
+		-- Click handler for the toggle box itself
+		AddConnection(ToggleBox.InputEnded, function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				ToggleDropdown.Toggled = not ToggleDropdown.Toggled
+				updateToggleVisuals()
+				SaveCfg(game.GameId)
+			end
+		end)
+
+		ToggleDropdown:Refresh(ToggleDropdown.Options, false)
+		ToggleDropdown:Set(ToggleDropdown.Value) -- Set initial dropdown value
+		updateToggleVisuals() -- Apply initial toggle state
+
+		if ToggleDropdownConfig.Flag then
+			OrionLib.Flags[ToggleDropdownConfig.Flag] = ToggleDropdown
+		end
+		return ToggleDropdown
+	end
+
 	OrionLib:MakeNotification({
 		Name = "UI Library Upgrade",
 		Content = "New UI Library Available at sirius.menu/discord and sirius.menu/rayfield",
 		Time = 5
 	})
-	
-
 	
 	return TabFunction
 end   
