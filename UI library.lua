@@ -19,6 +19,7 @@ function UILibrary:CreateWindow(titleText)
 	local stroke = Instance.new("UIStroke", main)
 	stroke.Color = Color3.fromRGB(0, 120, 255)
 	stroke.Thickness = 2
+	stroke.Transparency = 0.4  -- borda mais sutil
 
 	local title = Instance.new("TextLabel", main)
 	title.Size = UDim2.new(1, 0, 0, 40)
@@ -50,19 +51,38 @@ function UILibrary:CreateWindow(titleText)
 	buttonFrame.Position = UDim2.new(0, 10, 0.5, -50)
 	buttonFrame.BackgroundTransparency = 1
 
+	local function styleSideButton(btn)
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		btn.TextColor3 = Color3.new(1, 1, 1)
+		btn.BorderSizePixel = 0
+		btn.AutoButtonColor = true
+		btn.Font = Enum.Font.Gotham
+		btn.TextSize = 16
+
+		local uiStroke = Instance.new("UIStroke", btn)
+		uiStroke.Color = Color3.fromRGB(0, 120, 255)
+		uiStroke.Thickness = 1
+		uiStroke.Transparency = 0.6
+
+		btn.MouseEnter:Connect(function()
+			btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+		end)
+		btn.MouseLeave:Connect(function()
+			btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		end)
+	end
+
 	local showBtn = Instance.new("TextButton", buttonFrame)
 	showBtn.Size = UDim2.new(1, 0, 0.5, -2)
 	showBtn.Position = UDim2.new(0, 0, 0, 0)
 	showBtn.Text = "Hide"
-	showBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	showBtn.TextColor3 = Color3.new(1, 1, 1)
+	styleSideButton(showBtn)
 
 	local lockBtn = Instance.new("TextButton", buttonFrame)
 	lockBtn.Size = UDim2.new(1, 0, 0.5, -2)
 	lockBtn.Position = UDim2.new(0, 0, 0.5, 2)
 	lockBtn.Text = "Unlocked"
-	lockBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	lockBtn.TextColor3 = Color3.new(1, 1, 1)
+	styleSideButton(lockBtn)
 
 	local visible = true
 	showBtn.MouseButton1Click:Connect(function()
@@ -85,6 +105,7 @@ function UILibrary:CreateWindow(titleText)
 		btn.Text = name
 		btn.TextColor3 = Color3.new(1, 1, 1)
 		btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+		btn.BorderSizePixel = 1
 		btn.BorderColor3 = Color3.fromRGB(0, 120, 255)
 
 		local tabContent = Instance.new("Frame", contentHolder)
@@ -144,6 +165,11 @@ function UILibrary:CreateWindow(titleText)
 			btn.Text = text
 			btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 			btn.TextColor3 = Color3.new(1, 1, 1)
+			btn.BorderSizePixel = 1
+			btn.BorderColor3 = Color3.fromRGB(0, 120, 255)
+			btn.AutoButtonColor = true
+			btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80) end)
+			btn.MouseLeave:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60) end)
 			btn.MouseButton1Click:Connect(callback)
 		end
 
@@ -153,10 +179,17 @@ function UILibrary:CreateWindow(titleText)
 			toggle.Size = UDim2.new(1, -10, 0, 30)
 			toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 			toggle.TextColor3 = Color3.new(1, 1, 1)
+			toggle.BorderSizePixel = 1
+			toggle.BorderColor3 = Color3.fromRGB(0, 120, 255)
+			toggle.AutoButtonColor = true
 
 			local state = default or false
 			local function update() toggle.Text = text .. ": " .. (state and "ON" or "OFF") end
 			update()
+
+			toggle.MouseEnter:Connect(function() toggle.BackgroundColor3 = Color3.fromRGB(80, 80, 80) end)
+			toggle.MouseLeave:Connect(function() toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60) end)
+
 			toggle.MouseButton1Click:Connect(function()
 				state = not state
 				update()
@@ -171,6 +204,9 @@ function UILibrary:CreateWindow(titleText)
 			dropdown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 			dropdown.TextColor3 = Color3.new(1, 1, 1)
 			dropdown.Text = text
+			dropdown.BorderSizePixel = 1
+			dropdown.BorderColor3 = Color3.fromRGB(0, 120, 255)
+			dropdown.AutoButtonColor = true
 
 			local open = false
 			local opts = {}
@@ -186,13 +222,15 @@ function UILibrary:CreateWindow(titleText)
 						opt.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 						opt.TextColor3 = Color3.new(1, 1, 1)
 						opt.Text = "› " .. val
+						opt.BorderSizePixel = 1
+						opt.BorderColor3 = Color3.fromRGB(0, 120, 255)
+						opt.AutoButtonColor = true
 						opt.MouseButton1Click:Connect(function()
 							dropdown.Text = text .. ": " .. val
 							callback(val)
 							open = false
 							for _, o in pairs(opts) do o:Destroy() end
 						end)
-						table.insert(opts, opt)
 					end
 				end
 				open = not open
@@ -206,6 +244,9 @@ function UILibrary:CreateWindow(titleText)
 			dtoggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 			dtoggle.TextColor3 = Color3.new(1, 1, 1)
 			dtoggle.Text = text .. ": OFF"
+			dtoggle.BorderSizePixel = 1
+			dtoggle.BorderColor3 = Color3.fromRGB(0, 120, 255)
+			dtoggle.AutoButtonColor = true
 
 			local state = false
 			dtoggle.MouseButton1Click:Connect(function()
@@ -218,35 +259,52 @@ function UILibrary:CreateWindow(titleText)
 		function api:AddSlider(text, min, max, default, callback, side)
 			local parent = side == "Right" and rightScroll or leftScroll
 			local sliderHolder = Instance.new("Frame", parent)
-			sliderHolder.Size = UDim2.new(1, -10, 0, 40)
+			sliderHolder.Size = UDim2.new(1, -10, 0, 50)
 			sliderHolder.BackgroundTransparency = 1
 
 			local label = Instance.new("TextLabel", sliderHolder)
-			label.Size = UDim2.new(1, 0, 0.5, 0)
+			label.Size = UDim2.new(1, 0, 0.3, 0)
 			label.BackgroundTransparency = 1
 			label.TextColor3 = Color3.new(1, 1, 1)
 			label.Text = text .. ": " .. tostring(default)
+			label.Font = Enum.Font.Gotham
+			label.TextSize = 14
 
-			local slider = Instance.new("TextButton", sliderHolder)
-			slider.Size = UDim2.new(1, 0, 0.5, 0)
-			slider.Position = UDim2.new(0, 0, 0.5, 0)
-			slider.Text = ""
-			slider.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+			local slider = Instance.new("Frame", sliderHolder)
+			slider.Size = UDim2.new(1, 0, 0.4, 0)
+			slider.Position = UDim2.new(0, 0, 0.6, 0)
+			slider.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+			slider.BorderSizePixel = 1
+			slider.BorderColor3 = Color3.fromRGB(0, 120, 255)
+			slider.ClipsDescendants = true
 
-			local value = default
+			local fill = Instance.new("Frame", slider)
+			fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+			fill.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
 
-			slider.MouseButton1Down:Connect(function()
-				local conn
-				conn = mouse.Move:Connect(function()
-					local rel = math.clamp((mouse.X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, 0, 1)
-					value = math.floor(min + (max - min) * rel)
+			local dragging = false
+			slider.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+					dragging = true
+				end
+			end)
+			slider.InputEnded:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+					dragging = false
+				end
+			end)
+			slider.InputChanged:Connect(function(input)
+				if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+					local relativeX = math.clamp(input.Position.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
+					local percent = relativeX / slider.AbsoluteSize.X
+					local value = math.floor(min + (max - min) * percent)
+					fill.Size = UDim2.new(percent, 0, 1, 0)
 					label.Text = text .. ": " .. value
 					callback(value)
-				end)
-				mouse.Button1Up:Connect(function()
-					if conn then conn:Disconnect() end
-				end)
+				end
 			end)
+
+			return sliderHolder
 		end
 
 		return api
