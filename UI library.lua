@@ -9,15 +9,15 @@ function UILibrary:CreateWindow(titleText)
     gui.ResetOnSpawn = false
 
     local main = Instance.new("Frame", gui)
-    main.Size = UDim2.new(0, 540, 0, 420)
-    main.Position = UDim2.new(0.5, -270, 0.5, -210)
+    main.Size = UDim2.new(0, 570, 0, 444)
+    main.Position = UDim2.new(0.5, -285, 0.5, -222)
     main.BackgroundColor3 = Color3.fromRGB(36, 38, 43)
     main.BorderSizePixel = 0
     main.Active = true
     main.Draggable = true
 
     local corner = Instance.new("UICorner", main)
-    corner.CornerRadius = UDim.new(0, 10)
+    corner.CornerRadius = UDim.new(0, 12)
 
     local stroke = Instance.new("UIStroke", main)
     stroke.Color = Color3.fromRGB(0, 120, 255)
@@ -42,6 +42,53 @@ function UILibrary:CreateWindow(titleText)
     title.TextXAlignment = Enum.TextXAlignment.Center
     title.ZIndex = 2
 
+    -- Botões laterais à ESQUERDA
+    local buttonFrame = Instance.new("Frame", main)
+    buttonFrame.Size = UDim2.new(0, 124, 0, 120)
+    buttonFrame.Position = UDim2.new(0, -124, 0.5, -60)
+    buttonFrame.BackgroundTransparency = 1
+    buttonFrame.ZIndex = 10
+
+    local buttonLayout = Instance.new("UIListLayout", buttonFrame)
+    buttonLayout.FillDirection = Enum.FillDirection.Vertical
+    buttonLayout.Padding = UDim.new(0, 12)
+    buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    buttonLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+
+    local function styleSideButton(btn)
+        btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.BorderSizePixel = 0
+        btn.AutoButtonColor = true
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 16
+        btn.Size = UDim2.new(1, -8, 0, 44)
+        local btnCorner = Instance.new("UICorner", btn)
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70) end)
+        btn.MouseLeave:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50) end)
+    end
+
+    local showBtn = Instance.new("TextButton", buttonFrame)
+    showBtn.Text = "Hide"
+    styleSideButton(showBtn)
+
+    local lockBtn = Instance.new("TextButton", buttonFrame)
+    lockBtn.Text = "Unlocked"
+    styleSideButton(lockBtn)
+
+    local visible, locked = true, false
+    showBtn.MouseButton1Click:Connect(function()
+        visible = not visible
+        main.Visible = visible
+        showBtn.Text = visible and "Hide" or "Show"
+    end)
+    lockBtn.MouseButton1Click:Connect(function()
+        locked = not locked
+        main.Active = not locked
+        lockBtn.Text = locked and "Locked" or "Unlocked"
+    end)
+
     -- Tabs
     local tabsHolder = Instance.new("Frame", main)
     tabsHolder.Size = UDim2.new(1, -24, 0, 36)
@@ -61,55 +108,11 @@ function UILibrary:CreateWindow(titleText)
 
     local tabs = {}
 
-    -- Estilo botões externos
-    local buttonFrame = Instance.new("Frame", gui)
-    buttonFrame.Size = UDim2.new(0, 120, 0, 110)
-    buttonFrame.Position = UDim2.new(0.5, -60, 1, -120)
-    buttonFrame.BackgroundTransparency = 1
-    buttonFrame.ZIndex = 10
-
-    local function styleSideButton(btn)
-        btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        btn.TextColor3 = Color3.new(1, 1, 1)
-        btn.BorderSizePixel = 0
-        btn.AutoButtonColor = true
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 16
-        btn.Size = UDim2.new(1, -8, 0, 44)
-        btn.Position = UDim2.new(0, 4, 0, btn.Position.Y.Offset)
-        local btnCorner = Instance.new("UICorner", btn)
-        btnCorner.CornerRadius = UDim.new(0, 8)
-        btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70) end)
-        btn.MouseLeave:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50) end)
-    end
-
-    local showBtn = Instance.new("TextButton", buttonFrame)
-    showBtn.Position = UDim2.new(0, 0, 0, 0)
-    showBtn.Text = "Hide"
-    styleSideButton(showBtn)
-
-    local lockBtn = Instance.new("TextButton", buttonFrame)
-    lockBtn.Position = UDim2.new(0, 0, 0, 54)
-    lockBtn.Text = "Unlocked"
-    styleSideButton(lockBtn)
-
-    local visible, locked = true, false
-    showBtn.MouseButton1Click:Connect(function()
-        visible = not visible
-        main.Visible = visible
-        showBtn.Text = visible and "Hide" or "Show"
-    end)
-    lockBtn.MouseButton1Click:Connect(function()
-        locked = not locked
-        main.Active = not locked
-        lockBtn.Text = locked and "Locked" or "Unlocked"
-    end)
-
     -- Criação de aba
-    function UILibrary:CreateTab(name)
+    function UILibrary:CreateTab(tabTitle)
         local btn = Instance.new("TextButton", tabsHolder)
         btn.Size = UDim2.new(0, 104, 1, 0)
-        btn.Text = name
+        btn.Text = tabTitle
         btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
         btn.TextColor3 = Color3.new(1, 1, 1)
         btn.BorderSizePixel = 0
@@ -127,42 +130,76 @@ function UILibrary:CreateWindow(titleText)
         tabContent.BackgroundTransparency = 1
         tabContent.ZIndex = 3
 
-        local leftTitle = Instance.new("TextLabel", tabContent)
-        leftTitle.Size = UDim2.new(0.5, -10, 0, 24)
-        leftTitle.Position = UDim2.new(0, 10, 0, 0)
-        leftTitle.Text = "Seção Esquerda"
-        leftTitle.TextColor3 = Color3.new(1, 1, 1)
-        leftTitle.BackgroundTransparency = 1
-        leftTitle.Font = Enum.Font.GothamBold
-        leftTitle.TextSize = 15
-        leftTitle.TextXAlignment = Enum.TextXAlignment.Left
+        -- Layout principal da aba, borda e título dinâmico
+        local layoutHolder = Instance.new("Frame", tabContent)
+        layoutHolder.Size = UDim2.new(1, -24, 1, -24)
+        layoutHolder.Position = UDim2.new(0, 12, 0, 12)
+        layoutHolder.BackgroundColor3 = Color3.fromRGB(44, 46, 54)
+        layoutHolder.BorderSizePixel = 0
+        local layoutCorner = Instance.new("UICorner", layoutHolder)
+        layoutCorner.CornerRadius = UDim.new(0, 10)
+        local layoutStroke = Instance.new("UIStroke", layoutHolder)
+        layoutStroke.Color = Color3.fromRGB(0, 120, 255)
+        layoutStroke.Thickness = 1
+        layoutStroke.Transparency = 0.3
 
-        local rightTitle = leftTitle:Clone()
-        rightTitle.Parent = tabContent
-        rightTitle.Position = UDim2.new(0.5, 0, 0, 0)
-        rightTitle.Text = "Seção Direita"
-        rightTitle.TextXAlignment = Enum.TextXAlignment.Left
+        local layoutTitle = Instance.new("TextLabel", layoutHolder)
+        layoutTitle.Size = UDim2.new(1, -20, 0, 32)
+        layoutTitle.Position = UDim2.new(0, 10, 0, 6)
+        layoutTitle.BackgroundTransparency = 1
+        layoutTitle.Text = tabTitle .. " - Seções"
+        layoutTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+        layoutTitle.Font = Enum.Font.GothamBold
+        layoutTitle.TextSize = 18
+        layoutTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-        local leftScroll = Instance.new("ScrollingFrame", tabContent)
-        leftScroll.Position = UDim2.new(0, 10, 0, 28)
-        leftScroll.Size = UDim2.new(0.5, -16, 1, -38)
-        leftScroll.CanvasSize = UDim2.new(0, 0, 5, 0)
-        leftScroll.ScrollBarThickness = 6
-        leftScroll.BackgroundColor3 = Color3.fromRGB(40, 41, 47)
-        leftScroll.BorderSizePixel = 0
-        local leftCorner = Instance.new("UICorner", leftScroll)
-        leftCorner.CornerRadius = UDim.new(0, 8)
+        -- Seções (esquerda/direita) com título dinâmico
+        local sectionSpacing = 8
+        local sectionWidth = (layoutHolder.Size.X.Offset - sectionSpacing) / 2
 
-        local rightScroll = leftScroll:Clone()
-        rightScroll.Parent = tabContent
-        rightScroll.Position = UDim2.new(0.5, 6, 0, 28)
-        local rightCorner = Instance.new("UICorner", rightScroll)
-        rightCorner.CornerRadius = UDim.new(0, 8)
+        local function createSection(sectionTitle, pos, name)
+            local sectionFrame = Instance.new("Frame", layoutHolder)
+            sectionFrame.Size = UDim2.new(0.5, -sectionSpacing/2, 1, -50)
+            sectionFrame.Position = UDim2.new(pos, sectionSpacing/2, 0, 42)
+            sectionFrame.BackgroundColor3 = Color3.fromRGB(52, 54, 62)
+            sectionFrame.BorderSizePixel = 0
+            local sectionCorner = Instance.new("UICorner", sectionFrame)
+            sectionCorner.CornerRadius = UDim.new(0, 8)
+            local sectionStroke = Instance.new("UIStroke", sectionFrame)
+            sectionStroke.Color = Color3.fromRGB(0, 120, 255)
+            sectionStroke.Thickness = 1
+            sectionStroke.Transparency = 0.15
 
-        local leftLayout = Instance.new("UIListLayout", leftScroll); leftLayout.Padding = UDim.new(0, 6)
-        local rightLayout = Instance.new("UIListLayout", rightScroll); rightLayout.Padding = UDim.new(0, 6)
-        leftLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        rightLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+            local sectionT = Instance.new("TextLabel", sectionFrame)
+            sectionT.Name = "SectionTitle"
+            sectionT.Size = UDim2.new(1, -12, 0, 24)
+            sectionT.Position = UDim2.new(0, 6, 0, 6)
+            sectionT.BackgroundTransparency = 1
+            sectionT.Text = sectionTitle
+            sectionT.TextColor3 = Color3.new(1, 1, 1)
+            sectionT.Font = Enum.Font.GothamBold
+            sectionT.TextSize = 16
+            sectionT.TextXAlignment = Enum.TextXAlignment.Left
+
+            local scroll = Instance.new("ScrollingFrame", sectionFrame)
+            scroll.Name = name .. "Scroll"
+            scroll.Position = UDim2.new(0, 6, 0, 34)
+            scroll.Size = UDim2.new(1, -12, 1, -44)
+            scroll.CanvasSize = UDim2.new(0, 0, 5, 0)
+            scroll.ScrollBarThickness = 6
+            scroll.BackgroundColor3 = Color3.fromRGB(40, 41, 47)
+            scroll.BorderSizePixel = 0
+            local scrollCorner = Instance.new("UICorner", scroll)
+            scrollCorner.CornerRadius = UDim.new(0, 8)
+            local scrollLayout = Instance.new("UIListLayout", scroll)
+            scrollLayout.Padding = UDim.new(0, 8)
+            scrollLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+            return scroll, sectionT
+        end
+
+        local leftScroll, leftTitle = createSection(tabTitle .. " - Esquerda", 0, "Left")
+        local rightScroll, rightTitle = createSection(tabTitle .. " - Direita", 0.5, "Right")
 
         btn.MouseButton1Click:Connect(function()
             for _, t in pairs(tabs) do t.Visible = false end
@@ -171,6 +208,18 @@ function UILibrary:CreateWindow(titleText)
         table.insert(tabs, tabContent)
 
         local api = {}
+
+        -- Permite definir dinamicamente título das seções/layout
+        function api:SetSectionTitle(side, txt)
+            if side == "Right" then
+                rightTitle.Text = txt
+            else
+                leftTitle.Text = txt
+            end
+        end
+        function api:SetLayoutTitle(txt)
+            layoutTitle.Text = txt
+        end
 
         local function addHover(btn)
             btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70) end)
