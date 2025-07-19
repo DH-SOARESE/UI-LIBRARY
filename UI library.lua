@@ -126,7 +126,7 @@ function UILibrary:CreateWindow(titleText)
     lockBtn.MouseButton1Click:Connect(function()
         locked = not locked
         main.Active = not locked
-        lockBtn.Text = locked and "Locked" or "Unlocked"
+        lockBtn.Text = locked and "Locked" or "Locked"
     end)
 
     -- Criação de aba
@@ -157,7 +157,7 @@ function UILibrary:CreateWindow(titleText)
         local leftTitle = Instance.new("TextLabel")
         leftTitle.Size = UDim2.new(0.5, -10, 0, 24)
         leftTitle.Position = UDim2.new(0, 10, 0, 0)
-        leftTitle.Text = "Seção Esquerda"
+        leftTitle.Text = " "
         leftTitle.TextColor3 = Color3.new(1, 1, 1)
         leftTitle.BackgroundTransparency = 1
         leftTitle.Font = Enum.Font.GothamBold
@@ -168,7 +168,7 @@ function UILibrary:CreateWindow(titleText)
         local rightTitle = leftTitle:Clone()
         rightTitle.Parent = tabContent
         rightTitle.Position = UDim2.new(0.5, 0, 0, 0)
-        rightTitle.Text = "Seção Direita"
+        rightTitle.Text = " "
         rightTitle.TextXAlignment = Enum.TextXAlignment.Left
 
         local leftScroll = Instance.new("ScrollingFrame")
