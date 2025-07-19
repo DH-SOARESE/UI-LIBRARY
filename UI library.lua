@@ -14,21 +14,25 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local function createBorderedFrame(parent)
-    local outer = Instance.new("Frame", parent)
+    local outer = Instance.new("Frame")
+    outer.Parent = parent
     outer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    outer.BorderSizePixel = 0
+    outer.BorderColor3 = Color3.fromRGB(0,0,0)
+    outer.BorderSizePixel = 2
     outer.Size = UDim2.new(0, 520, 0, 460)
     outer.Position = UDim2.new(0.5, -260, 0.5, -230)
     outer.AnchorPoint = Vector2.new(0.5, 0.5)
     outer.Name = "Outer"
 
-    local inner = Instance.new("Frame", outer)
+    local inner = Instance.new("Frame")
+    inner.Parent = outer
     inner.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
+    inner.BorderSizePixel = 0
     inner.Position = UDim2.new(0, 2, 0, 2)
     inner.Size = UDim2.new(1, -4, 1, -4)
-    inner.BorderSizePixel = 0
 
-    local main = Instance.new("Frame", inner)
+    local main = Instance.new("Frame")
+    main.Parent = inner
     main.BackgroundColor3 = Color3.fromRGB(28, 37, 38)
     main.Position = UDim2.new(0, 1, 0, 1)
     main.Size = UDim2.new(1, -2, 1, -2)
@@ -39,15 +43,17 @@ local function createBorderedFrame(parent)
 end
 
 function UILibrary:CreateWindow(titleText)
-    local gui = Instance.new("ScreenGui", playerGui)
+    local gui = Instance.new("ScreenGui")
     gui.Name = "CustomUILibrary"
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    gui.Parent = playerGui
 
     local outerFrame, mainUI = createBorderedFrame(gui)
 
     -- Título
-    local title = Instance.new("TextLabel", mainUI)
+    local title = Instance.new("TextLabel")
+    title.Parent = mainUI
     title.Size = UDim2.new(1, 0, 0, 30)
     title.Position = UDim2.new(0, 0, 0, 0)
     title.Text = titleText or "Interface"
@@ -58,7 +64,8 @@ function UILibrary:CreateWindow(titleText)
     title.TextXAlignment = Enum.TextXAlignment.Center
 
     -- Abas
-    local tabScroll = Instance.new("ScrollingFrame", mainUI)
+    local tabScroll = Instance.new("ScrollingFrame")
+    tabScroll.Parent = mainUI
     tabScroll.Size = UDim2.new(1, 0, 0, 35)
     tabScroll.Position = UDim2.new(0, 0, 0, 30)
     tabScroll.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -69,7 +76,8 @@ function UILibrary:CreateWindow(titleText)
     tabScroll.Name = "TabScroll"
     tabScroll.ScrollingDirection = Enum.ScrollingDirection.X
 
-    local tabLayout = Instance.new("UIListLayout", tabScroll)
+    local tabLayout = Instance.new("UIListLayout")
+    tabLayout.Parent = tabScroll
     tabLayout.FillDirection = Enum.FillDirection.Horizontal
     tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -89,14 +97,16 @@ function UILibrary:CreateWindow(titleText)
         tabBtn.AutoButtonColor = true
         tabBtn.Parent = tabScroll
 
-        local container = Instance.new("Frame", mainUI)
+        local container = Instance.new("Frame")
+        container.Parent = mainUI
         container.Position = UDim2.new(0, 0, 0, 65)
         container.Size = UDim2.new(1, 0, 1, -65)
         container.Visible = false
         container.Name = name
         container.BackgroundTransparency = 1
 
-        local scrollLeft = Instance.new("ScrollingFrame", container)
+        local scrollLeft = Instance.new("ScrollingFrame")
+        scrollLeft.Parent = container
         scrollLeft.Size = UDim2.new(0.5, -5, 1, 0)
         scrollLeft.Position = UDim2.new(0, 0, 0, 0)
         scrollLeft.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -105,11 +115,13 @@ function UILibrary:CreateWindow(titleText)
         scrollLeft.CanvasSize = UDim2.new(0, 0, 0, 0)
         scrollLeft.AutomaticCanvasSize = Enum.AutomaticSize.Y
         scrollLeft.Name = "Left"
-        local leftLayout = Instance.new("UIListLayout", scrollLeft)
+        local leftLayout = Instance.new("UIListLayout")
+        leftLayout.Parent = scrollLeft
         leftLayout.Padding = UDim.new(0, 4)
         leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-        local scrollRight = Instance.new("ScrollingFrame", container)
+        local scrollRight = Instance.new("ScrollingFrame")
+        scrollRight.Parent = container
         scrollRight.Size = UDim2.new(0.5, -5, 1, 0)
         scrollRight.Position = UDim2.new(0.5, 5, 0, 0)
         scrollRight.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -118,7 +130,8 @@ function UILibrary:CreateWindow(titleText)
         scrollRight.CanvasSize = UDim2.new(0, 0, 0, 0)
         scrollRight.AutomaticCanvasSize = Enum.AutomaticSize.Y
         scrollRight.Name = "Right"
-        local rightLayout = Instance.new("UIListLayout", scrollRight)
+        local rightLayout = Instance.new("UIListLayout")
+        rightLayout.Parent = scrollRight
         rightLayout.Padding = UDim.new(0, 4)
         rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
@@ -136,6 +149,9 @@ function UILibrary:CreateWindow(titleText)
                 handleClick()
             end
         end)
+        tabBtn.MouseButton1Click:Connect(function()
+            handleClick()
+        end)
 
         return { Left = scrollLeft, Right = scrollRight, Name = name }
     end
@@ -143,10 +159,13 @@ function UILibrary:CreateWindow(titleText)
     -- Componentes adicionais
     function tabs:AddCheckBox(tab, text, default, callback, side)
         local parent = tab[side or "Left"]
-        local frame = Instance.new("Frame", parent)
-        frame.Size = UDim2.new(1, -10, 0, 30); frame.BackgroundTransparency = 1
+        local frame = Instance.new("Frame")
+        frame.Parent = parent
+        frame.Size = UDim2.new(1, -10, 0, 30)
+        frame.BackgroundTransparency = 1
 
-        local check = Instance.new("TextButton", frame)
+        local check = Instance.new("TextButton")
+        check.Parent = frame
         check.Size = UDim2.new(0, 24, 0, 24)
         check.Position = UDim2.new(0, 5, 0.5, -12)
         check.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
@@ -156,7 +175,8 @@ function UILibrary:CreateWindow(titleText)
         check.TextSize = 18
         check.BorderSizePixel = 0
 
-        local label = Instance.new("TextLabel", frame)
+        local label = Instance.new("TextLabel")
+        label.Parent = frame
         label.Size = UDim2.new(1, -35, 1, 0)
         label.Position = UDim2.new(0, 35, 0, 0)
         label.BackgroundTransparency = 1
@@ -167,39 +187,56 @@ function UILibrary:CreateWindow(titleText)
         label.TextXAlignment = Enum.TextXAlignment.Left
 
         local state = default or false
-        check.MouseButton1Click:Connect(function()
+        local function toggle()
             state = not state
             check.Text = state and "✔" or ""
             if callback then callback(state) end
-        end)
+        end
+        check.MouseButton1Click:Connect(toggle)
+        check.TouchTap:Connect(toggle)
     end
 
     function tabs:AddSlider(tab, text, min, max, default, callback, side)
         local parent = tab[side or "Left"]
-        local container = Instance.new("Frame", parent)
-        container.Size = UDim2.new(1, -10, 0, 50); container.BackgroundTransparency = 1
+        local container = Instance.new("Frame")
+        container.Parent = parent
+        container.Size = UDim2.new(1, -10, 0, 50)
+        container.BackgroundTransparency = 1
 
-        local label = Instance.new("TextLabel", container)
+        local label = Instance.new("TextLabel")
+        label.Parent = container
         label.Size = UDim2.new(1, 0, 0, 20)
         label.Position = UDim2.new(0, 0, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = text..": "..tostring(default)
         label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        label.Font = Enum.Font.SourceSans; label.TextSize = 18
+        label.Font = Enum.Font.SourceSans
+        label.TextSize = 18
         label.TextXAlignment = Enum.TextXAlignment.Left
 
-        local sliderBack = Instance.new("Frame", container)
+        local sliderBack = Instance.new("Frame")
+        sliderBack.Parent = container
         sliderBack.Position = UDim2.new(0, 0, 0, 28)
         sliderBack.Size = UDim2.new(1, 0, 0, 12)
         sliderBack.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
         sliderBack.BorderSizePixel = 0
 
-        local sliderFill = Instance.new("Frame", sliderBack)
+        local sliderFill = Instance.new("Frame")
+        sliderFill.Parent = sliderBack
         sliderFill.Size = UDim2.new((default - min)/(max - min), 0, 1, 0)
         sliderFill.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
         sliderFill.BorderSizePixel = 0
 
         local dragging = false
+        local function setValueFromInput(input)
+            local rel = input.Position.X - sliderBack.AbsolutePosition.X
+            local pct = math.clamp(rel / sliderBack.AbsoluteSize.X, 0, 1)
+            local value = math.floor(min + (max-min)*pct)
+            sliderFill.Size = UDim2.new(pct, 0, 1, 0)
+            label.Text = text..": "..tostring(value)
+            if callback then callback(value) end
+        end
+
         sliderBack.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or 
                input.UserInputType == Enum.UserInputType.Touch then
@@ -215,12 +252,7 @@ function UILibrary:CreateWindow(titleText)
         UIS.InputChanged:Connect(function(input)
             if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
                              input.UserInputType == Enum.UserInputType.Touch) then
-                local rel = input.Position.X - sliderBack.AbsolutePosition.X
-                local pct = math.clamp(rel / sliderBack.AbsoluteSize.X, 0, 1)
-                local value = math.floor(min + (max-min)*pct)
-                sliderFill.Size = UDim2.new(pct, 0, 1, 0)
-                label.Text = text..": "..tostring(value)
-                if callback then callback(value) end
+                setValueFromInput(input)
             end
         end)
     end
@@ -229,11 +261,13 @@ function UILibrary:CreateWindow(titleText)
         local parent = tab[side or "Left"]
         local open = false
 
-        local container = Instance.new("Frame", parent)
+        local container = Instance.new("Frame")
+        container.Parent = parent
         container.Size = UDim2.new(1, -10, 0, 36)
         container.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 
-        local button = Instance.new("TextButton", container)
+        local button = Instance.new("TextButton")
+        button.Parent = container
         button.Size = UDim2.new(1, 0, 1, 0)
         button.Text = text
         button.BackgroundTransparency = 1
@@ -241,14 +275,16 @@ function UILibrary:CreateWindow(titleText)
         button.Font = Enum.Font.SourceSans
         button.TextSize = 18
 
-        local dropdown = Instance.new("Frame", parent)
+        local dropdown = Instance.new("Frame")
+        dropdown.Parent = parent
         dropdown.Position = UDim2.new(0, 5, 0, 40)
         dropdown.Size = UDim2.new(1, -10, 0, #options * 30)
         dropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         dropdown.Visible = false
 
         for _, opt in ipairs(options) do
-            local optBtn = Instance.new("TextButton", dropdown)
+            local optBtn = Instance.new("TextButton")
+            optBtn.Parent = dropdown
             optBtn.Size = UDim2.new(1, 0, 0, 30)
             optBtn.Text = opt
             optBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
@@ -263,12 +299,21 @@ function UILibrary:CreateWindow(titleText)
                 open = false
                 if callback then callback(opt) end
             end)
+            optBtn.TouchTap:Connect(function()
+                button.Text = text..": "..opt
+                dropdown.Visible = false
+                open = false
+                if callback then callback(opt) end
+            end)
         end
 
-        button.MouseButton1Click:Connect(function()
+        local function toggleDropdown()
             open = not open
             dropdown.Visible = open
-        end)
+        end
+
+        button.MouseButton1Click:Connect(toggleDropdown)
+        button.TouchTap:Connect(toggleDropdown)
     end
 
     function tabs:AddDropdownCheckBox(tab, text, options, callback, side)
@@ -276,11 +321,13 @@ function UILibrary:CreateWindow(titleText)
         local open = false
         local selected = {}
 
-        local container = Instance.new("Frame", parent)
+        local container = Instance.new("Frame")
+        container.Parent = parent
         container.Size = UDim2.new(1, -10, 0, 36)
         container.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 
-        local button = Instance.new("TextButton", container)
+        local button = Instance.new("TextButton")
+        button.Parent = container
         button.Size = UDim2.new(1, 0, 1, 0)
         button.Text = text
         button.BackgroundTransparency = 1
@@ -288,18 +335,21 @@ function UILibrary:CreateWindow(titleText)
         button.Font = Enum.Font.SourceSans
         button.TextSize = 18
 
-        local dropdown = Instance.new("Frame", parent)
+        local dropdown = Instance.new("Frame")
+        dropdown.Parent = parent
         dropdown.Position = UDim2.new(0, 5, 0, 40)
         dropdown.Size = UDim2.new(1, -10, 0, #options * 30)
         dropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         dropdown.Visible = false
 
         for _, opt in ipairs(options) do
-            local row = Instance.new("Frame", dropdown)
+            local row = Instance.new("Frame")
+            row.Parent = dropdown
             row.Size = UDim2.new(1, 0, 0, 30)
             row.BackgroundTransparency = 1
 
-            local box = Instance.new("TextButton", row)
+            local box = Instance.new("TextButton")
+            box.Parent = row
             box.Size = UDim2.new(0, 24, 0, 24)
             box.Position = UDim2.new(0, 5, 0.5, -12)
             box.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
@@ -309,7 +359,8 @@ function UILibrary:CreateWindow(titleText)
             box.TextSize = 18
             box.BorderSizePixel = 0
 
-            local lbl = Instance.new("TextLabel", row)
+            local lbl = Instance.new("TextLabel")
+            lbl.Parent = row
             lbl.Size = UDim2.new(1, -35, 1, 0)
             lbl.Position = UDim2.new(0, 35, 0, 0)
             lbl.BackgroundTransparency = 1
@@ -319,23 +370,28 @@ function UILibrary:CreateWindow(titleText)
             lbl.TextSize = 18
             lbl.TextXAlignment = Enum.TextXAlignment.Left
 
-            box.MouseButton1Click:Connect(function()
+            local function toggleBox()
                 selected[opt] = not selected[opt]
                 box.Text = selected[opt] and "✔" or ""
                 if callback then
-                    local res={}
-                    for k,v in pairs(selected) do
-                        if v then table.insert(res,k) end
+                    local res = {}
+                    for k, v in pairs(selected) do
+                        if v then table.insert(res, k) end
                     end
                     callback(res)
                 end
-            end)
+            end
+            box.MouseButton1Click:Connect(toggleBox)
+            box.TouchTap:Connect(toggleBox)
         end
 
-        button.MouseButton1Click:Connect(function()
+        local function toggleDropdown()
             open = not open
             dropdown.Visible = open
-        end)
+        end
+
+        button.MouseButton1Click:Connect(toggleDropdown)
+        button.TouchTap:Connect(toggleDropdown)
     end
 
     -- Dragging
@@ -347,12 +403,12 @@ function UILibrary:CreateWindow(titleText)
     end
 
     outerFrame.InputBegan:Connect(function(input)
-        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = outerFrame.Position
             input.Changed:Connect(function()
-                if input.UserInputState==Enum.UserInputState.End then
+                if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
                 end
             end)
@@ -360,7 +416,7 @@ function UILibrary:CreateWindow(titleText)
     end)
 
     outerFrame.InputChanged:Connect(function(input)
-        if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
