@@ -86,6 +86,7 @@ function UILibrary:CreateWindow(titleText)
         local container = Instance.new("Frame", mainUI)
         container.Position = UDim2.new(0, 0, 0, 65)
         container.Size = UDim2.new(1, 0, 1, -65)
+        container.BackgroundTransparency = 1
         container.Visible = false
         container.Name = name
         container.BackgroundTransparency = 1
